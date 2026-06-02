@@ -1,3 +1,87 @@
+<<<<<<< HEAD
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-display: 'Instrument Serif', serif;
+    --font-body: 'Inter', sans-serif;
+
+    --background: 201 100% 13%;
+    --foreground: 0 0% 100%;
+    
+    --muted-foreground: 240 4% 66%;
+    
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 4%;
+    
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 100%;
+    
+    --muted: 0 0% 10%;
+    
+    --accent: 0 0% 10%;
+    --accent-foreground: 0 0% 100%;
+    
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer utilities {
+  .liquid-glass {
+    background: rgba(255, 255, 255, 0.01);
+    background-blend-mode: luminosity;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: none;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .liquid-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.4px;
+    background: linear-gradient(180deg,
+      rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 20%,
+      rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%,
+      rgba(255,255,255,0.15) 80%, rgba(255,255,255,0.45) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .animate-fade-rise {
+    animation: fade-rise 0.8s ease-out both;
+  }
+  
+  .animate-fade-rise-delay {
+    animation: fade-rise 0.8s ease-out 0.2s both;
+  }
+  
+  .animate-fade-rise-delay-2 {
+    animation: fade-rise 0.8s ease-out 0.4s both;
+  }
+}
+
+@keyframes fade-rise {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+=======
 :root {
   --text: #6b6375;
   --text-h: #08060d;
@@ -108,4 +192,5 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+>>>>>>> ec5645c424a55b002ca7979f0404271de8c0bcf3
 }
