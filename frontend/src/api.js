@@ -2,7 +2,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "http://localhost:8000",
-  timeout: 10000, // 10 second timeout — prevents hanging if backend is down
+  timeout: 30000, // 30 second default timeout; transcription calls override this to 40s
 });
 
 // Attach token to every request automatically

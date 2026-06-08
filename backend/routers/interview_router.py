@@ -10,6 +10,9 @@ router = APIRouter(prefix="/interview", tags=["interview"])
 
 # ─── HeyGen helpers ────────────────────────────────────────────────────────────
 HEYGEN_BASE = "https://api.heygen.com"
+# Default avatar — can be overridden via HEYGEN_AVATAR_ID env var
+# To find available avatars, call GET /interview/heygen/avatars
+HEYGEN_AVATAR_ID = os.getenv("HEYGEN_AVATAR_ID", "Ann_Therapist_public")
 
 def _hg_headers():
     key = os.getenv("HEYGEN_API_KEY", "")
@@ -216,21 +219,31 @@ async def upload_cv(
 
 @router.post("/heygen/new")
 async def heygen_new_session(current_user=Depends(get_current_user)):
-    """Get a short-lived HeyGen streaming token for the frontend SDK."""
+    """Create a new HeyGen streaming session and return session_id + SDP offer + ICE servers
+    so the frontend can establish a raw WebRTC peer connection.
+    Uses POST /v1/streaming.new (not streaming.create_token which is for the SDK only).
+    """
     try:
         resp = http_requests.post(
-            f"{HEYGEN_BASE}/v1/streaming.create_token",
+            f"{HEYGEN_BASE}/v1/streaming.new",
             headers=_hg_headers(),
-            timeout=15,
+            json={
+                "quality": "high",
+                "avatar_name": HEYGEN_AVATAR_ID,
+                "voice": {
+                    "voice_id": "",  # empty = default voice for the avatar
+                },
+            },
+            timeout=20,
         )
         data = resp.json()
-        token = data.get("data", {}).get("token") if isinstance(data.get("data"), dict) else None
-        if not token:
+        if resp.status_code != 200 or data.get("code") not in (100, None, 0):
             raise HTTPException(
                 status_code=502,
-                detail=f"HeyGen token creation failed (HTTP {resp.status_code}): {data}"
+                detail=f"HeyGen session creation failed (HTTP {resp.status_code}): {data}"
             )
-        return {"token": token}
+        # Return the full data object so the frontend can extract session_id, sdp, ice_servers2
+        return data
     except HTTPException:
         raise
     except Exception as e:
@@ -281,6 +294,32 @@ async def heygen_stop_session(payload: dict, current_user=Depends(get_current_us
             timeout=10,
         )
         return resp.json()
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"HeyGen error: {e}")
+
+
+@router.get("/heygen/avatars")
+async def heygen_list_avatars(current_user=Depends(get_current_user)):
+    """List streaming-capable avatars available on your HeyGen account.
+    Use the returned avatar IDs to set HEYGEN_AVATAR_ID in your .env file.
+    """
+    try:
+        # First, get avatars list
+        resp = http_requests.get(
+            f"{HEYGEN_BASE}/v2/avatars",
+            headers=_hg_headers(),
+            timeout=15,
+        )
+        data = resp.json()
+        avatars = data.get("data", {}).get("avatars", []) if isinstance(data.get("data"), dict) else []
+        return {
+            "current_avatar_id": HEYGEN_AVATAR_ID,
+            "avatars": [
+                {"avatar_id": a.get("avatar_id"), "avatar_name": a.get("avatar_name")}
+                for a in avatars
+            ]
+        }
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=502, detail=f"HeyGen error: {e}")

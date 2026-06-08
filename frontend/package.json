@@ -10,12 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.1.0",
+    "@react-three/postprocessing": "^3.0.0",
     "axios": "^1.16.1",
     "face-api.js": "^0.22.2",
     "firebase": "^12.14.0",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "three": "^0.175.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

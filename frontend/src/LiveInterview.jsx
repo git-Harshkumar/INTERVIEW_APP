@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import api from "./api";
+import ALEX_AVATAR from "./assets/alex-real.png";
+import * as faceapi from "face-api.js";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const TOPIC_OPTIONS = [
@@ -12,6 +14,315 @@ const TOPIC_OPTIONS = [
   "Machine Learning", "CSS & HTML", "REST APIs", "General HR",
 ];
 
+const EXPRESSION_LABELS = ["neutral", "happy", "surprised", "sad", "angry", "fearful", "disgusted"];
+const FILLER_WORDS = ["um", "uh", "like", "actually", "basically", "literally", "you know", "i mean", "sort of", "kind of"];
+const SECURITY_LIMITS = {
+  maxViolations: 5,
+  noFaceWarningSamples: 3,
+  multipleFaceWarningSamples: 2,
+};
+
+const CODING_LANGUAGES = {
+  javascript: {
+    label: "JavaScript",
+    template: "function twoSum(nums, target) {\n  // Return indexes of two numbers that add up to target.\n  return [];\n}",
+  },
+  python: {
+    label: "Python",
+    template: "def two_sum(nums, target):\n    # Return indexes of two numbers that add up to target.\n    return []",
+  },
+  java: {
+    label: "Java",
+    template: "class Solution {\n  public int[] twoSum(int[] nums, int target) {\n    return new int[]{};\n  }\n}",
+  },
+  cpp: {
+    label: "C++",
+    template: "#include <vector>\nusing namespace std;\n\nclass Solution {\npublic:\n  vector<int> twoSum(vector<int>& nums, int target) {\n    return {};\n  }\n};",
+  },
+};
+
+const DEFAULT_CODING_CHALLENGE = {
+  id: "two-sum",
+  title: "Two Sum",
+  prompt: "Given an array of integers nums and an integer target, return the indexes of two numbers that add up to target.",
+  inputHint: "Custom input JSON: {\"nums\":[2,7,11,15],\"target\":9}",
+  tests: [
+    { name: "Basic pair", nums: [2, 7, 11, 15], target: 9, expected: [0, 1] },
+    { name: "Middle pair", nums: [3, 2, 4], target: 6, expected: [1, 2] },
+    { name: "Duplicate values", nums: [3, 3], target: 6, expected: [0, 1] },
+    { name: "Negative values", nums: [-1, -2, -3, -4, -5], target: -8, expected: [2, 4] },
+  ],
+};
+
+function createFaceStats() {
+  return {
+    samples: 0,
+    detected: 0,
+    expressions: Object.fromEntries(EXPRESSION_LABELS.map(label => [label, 0])),
+  };
+}
+
+function topExpression(expressions = {}) {
+  return Object.entries(expressions).sort((a, b) => b[1] - a[1])[0]?.[0] || "neutral";
+}
+
+function analyseSpeechDelivery(text) {
+  const normalized = ` ${text.toLowerCase().replace(/[^a-z\s']/g, " ")} `;
+  const words = normalized.trim().split(/\s+/).filter(Boolean);
+  const fillerCount = FILLER_WORDS.reduce((count, filler) => {
+    const pattern = new RegExp(`\\b${filler.replace(" ", "\\s+")}\\b`, "g");
+    return count + (normalized.match(pattern) || []).length;
+  }, 0);
+  const shortAnswer = words.length < 18;
+  const repeatedStarts = (normalized.match(/\b(i think|so|basically|actually)\b/g) || []).length;
+
+  return {
+    wordCount: words.length,
+    fillerCount,
+    fillerRate: words.length ? Math.round((fillerCount / words.length) * 100) : 0,
+    clarityFlag: shortAnswer || fillerCount >= 4 || repeatedStarts >= 3,
+  };
+}
+
+function buildDeliveryAnalysis(faceStats, answerMetrics) {
+  const detectedPct = faceStats.samples
+    ? Math.round((faceStats.detected / faceStats.samples) * 100)
+    : 0;
+  const dominantExpression = topExpression(faceStats.expressions);
+  const totalWords = answerMetrics.reduce((sum, item) => sum + item.wordCount, 0);
+  const totalFillers = answerMetrics.reduce((sum, item) => sum + item.fillerCount, 0);
+  const fillerRate = totalWords ? Math.round((totalFillers / totalWords) * 100) : 0;
+  const unclearAnswers = answerMetrics.filter(item => item.clarityFlag).length;
+  const expressionMix = Object.entries(faceStats.expressions)
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([label, count]) => ({
+      label,
+      percent: faceStats.detected ? Math.round((count / faceStats.detected) * 100) : 0,
+    }));
+
+  const improvements = [];
+  if (detectedPct < 60) improvements.push("Keep your face centered in the camera with steady lighting.");
+  if (dominantExpression === "neutral") improvements.push("Add a little more facial warmth when answering, especially during introductions and examples.");
+  if (["sad", "angry", "fearful", "disgusted"].includes(dominantExpression)) improvements.push("Practice relaxing your face between points so your delivery feels calmer and more confident.");
+  if (fillerRate >= 4) improvements.push("Reduce filler words by pausing silently for a second before continuing.");
+  if (unclearAnswers > 0) improvements.push("Structure shorter answers with a clear beginning, example, and conclusion.");
+  if (improvements.length === 0) improvements.push("Your delivery signals looked steady. Keep practicing concise, confident answers.");
+
+  return {
+    detectedPct,
+    dominantExpression,
+    expressionMix,
+    totalFillers,
+    fillerRate,
+    unclearAnswers,
+    summary: `Camera detected your face in ${detectedPct}% of samples. Your most common expression was ${dominantExpression}, with ${totalFillers} filler-word signals across the interview.`,
+    improvements,
+  };
+}
+
+function buildSecurityAnalysis(violations, threshold) {
+  const highRisk = violations.filter(item => item.severity === "high").length;
+  const byType = violations.reduce((acc, item) => {
+    acc[item.type] = (acc[item.type] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    violationCount: violations.length,
+    threshold,
+    highRisk,
+    interviewerNotified: violations.length >= threshold,
+    byType,
+    violations,
+    summary: violations.length
+      ? `${violations.length} secure-mode event(s) were logged, including ${highRisk} high-risk event(s).`
+      : "No secure-mode violations were logged.",
+  };
+}
+
+function buildProctoringAnalysis(proctoring) {
+  const faceVisiblePct = proctoring.samples
+    ? Math.round((proctoring.faceVisible / proctoring.samples) * 100)
+    : 0;
+  const flags = [];
+  if (proctoring.noFaceSamples >= SECURITY_LIMITS.noFaceWarningSamples) flags.push("Candidate left the webcam frame repeatedly.");
+  if (proctoring.multipleFaceSamples >= SECURITY_LIMITS.multipleFaceWarningSamples) flags.push("Multiple faces appeared in the webcam frame.");
+  if (faceVisiblePct < 65) flags.push("Face visibility was low during the interview.");
+  if (flags.length === 0) flags.push("No major webcam proctoring concerns were detected.");
+
+  return {
+    samples: proctoring.samples,
+    faceVisiblePct,
+    noFaceSamples: proctoring.noFaceSamples,
+    multipleFaceSamples: proctoring.multipleFaceSamples,
+    flags,
+    summary: `Candidate face was visible in ${faceVisiblePct}% of webcam samples.`,
+  };
+}
+
+function buildCodingAnalysis(codingReports) {
+  if (!codingReports.length) {
+    return {
+      attempted: false,
+      score: 0,
+      summary: "No coding challenge was included in this interview.",
+      reports: [],
+    };
+  }
+  const score = Math.round(codingReports.reduce((sum, item) => sum + item.score, 0) / codingReports.length);
+  const passed = codingReports.reduce((sum, item) => sum + item.passed, 0);
+  const total = codingReports.reduce((sum, item) => sum + item.total, 0);
+  return {
+    attempted: true,
+    score,
+    passed,
+    total,
+    summary: `Coding score ${score}/100 with ${passed}/${total} tests passed.`,
+    reports: codingReports,
+  };
+}
+
+function normalizePair(value) {
+  return Array.isArray(value) ? value.map(Number).sort((a, b) => a - b).join(",") : "";
+}
+
+function parseCustomCodingInput(raw) {
+  if (!raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.nums) || typeof parsed.target !== "number") return null;
+    return { name: "Custom input", nums: parsed.nums, target: parsed.target, expected: null };
+  } catch {
+    return null;
+  }
+}
+
+function estimateComplexity(code) {
+  const normalized = code.toLowerCase();
+  const nestedLoops = /(for|while)[\s\S]{0,260}(for|while)/.test(normalized);
+  const hasHashLookup = /(map|set|object|dict|unordered_map|hashmap|\{\})/.test(normalized);
+  const hasSort = /\.sort|sort\(/.test(normalized);
+
+  if (nestedLoops) return { time: "O(n^2)", space: "O(1)", note: "Nested loops suggest a brute-force search." };
+  if (hasHashLookup) return { time: "O(n)", space: "O(n)", note: "Hash lookup pattern suggests a linear-time solution." };
+  if (hasSort) return { time: "O(n log n)", space: "O(n)", note: "Sorting can work, but preserving original indexes needs care." };
+  return { time: "Likely O(n)", space: "Review needed", note: "The code needs manual review for exact complexity." };
+}
+
+function buildCodingFeedback({ code, language, passed, total, runnable, customResult }) {
+  const complexity = estimateComplexity(code);
+  const correctness = total ? Math.round((passed / total) * 100) : runnable ? 0 : 45;
+  const strengths = [];
+  const improvements = [];
+
+  if (passed === total && total > 0) strengths.push("Passed all visible and hidden-style test cases.");
+  if (complexity.time === "O(n)") strengths.push("Uses an efficient linear-time direction.");
+  if (code.length > 120) strengths.push("Submitted a non-trivial implementation for review.");
+  if (passed < total && runnable) improvements.push("Debug failing edge cases before discussing optimization.");
+  if (complexity.time === "O(n^2)") improvements.push("Consider using a hash map to reduce lookup time.");
+  if (!runnable) improvements.push("Connect a backend container runner to execute this language safely.");
+  if (customResult) strengths.push("Custom input was executed for candidate-driven testing.");
+
+  return {
+    score: correctness,
+    correctness,
+    timeComplexity: complexity.time,
+    spaceComplexity: complexity.space,
+    complexityNote: complexity.note,
+    strengths: strengths.length ? strengths : ["The solution is ready for interviewer review."],
+    improvements: improvements.length ? improvements : ["Discuss edge cases and trade-offs in the follow-up."],
+  };
+}
+
+function runJavaScriptChallenge(code, challenge, customInput) {
+  const workerSource = `
+    self.onmessage = (event) => {
+      const { code, tests, customInput } = event.data;
+      const normalize = value => Array.isArray(value) ? value.map(Number).sort((a, b) => a - b).join(",") : "";
+      try {
+        const fn = new Function(code + "; return typeof twoSum === 'function' ? twoSum : null;")();
+        if (!fn) throw new Error("Define a function named twoSum(nums, target).");
+        const results = tests.map(test => {
+          const output = fn([...test.nums], test.target);
+          const passed = normalize(output) === normalize(test.expected);
+          return { name: test.name, output, expected: test.expected, passed };
+        });
+        let customResult = null;
+        if (customInput) {
+          customResult = fn([...customInput.nums], customInput.target);
+        }
+        self.postMessage({ ok: true, results, customResult });
+      } catch (err) {
+        self.postMessage({ ok: false, error: err.message || String(err) });
+      }
+    };
+  `;
+
+  return new Promise(resolve => {
+    const blob = new Blob([workerSource], { type: "application/javascript" });
+    const worker = new Worker(URL.createObjectURL(blob));
+    const timer = setTimeout(() => {
+      worker.terminate();
+      resolve({ ok: false, error: "Execution timed out after 2 seconds." });
+    }, 2000);
+
+    worker.onmessage = event => {
+      clearTimeout(timer);
+      worker.terminate();
+      resolve(event.data);
+    };
+    worker.onerror = event => {
+      clearTimeout(timer);
+      worker.terminate();
+      resolve({ ok: false, error: event.message || "Worker execution failed." });
+    };
+    worker.postMessage({ code, tests: challenge.tests, customInput });
+  });
+}
+
+async function analyzeCodeSubmission({ code, language, challenge, customInputRaw }) {
+  const customInput = parseCustomCodingInput(customInputRaw);
+  const canRun = language === "javascript";
+  let results = [];
+  let customResult = null;
+  let error = "";
+
+  if (canRun) {
+    const run = await runJavaScriptChallenge(code, challenge, customInput);
+    if (run.ok) {
+      results = run.results;
+      customResult = run.customResult;
+    } else {
+      error = run.error;
+    }
+  }
+
+  const passed = results.filter(item => item.passed).length;
+  const total = results.length || challenge.tests.length;
+  const feedback = buildCodingFeedback({
+    code,
+    language,
+    passed,
+    total,
+    runnable: canRun,
+    customResult,
+  });
+
+  return {
+    language,
+    runnable: canRun,
+    passed,
+    total,
+    tests: results,
+    customInputValid: !customInputRaw.trim() || !!customInput,
+    customResult,
+    error,
+    ...feedback,
+  };
+}
+
 // ─── Setup Screen ─────────────────────────────────────────────────────────────
 function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
   const [jobRole,        setJobRole]        = useState("");
@@ -23,6 +334,9 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
   const [cvText,         setCvText]         = useState("");
   const [difficulty,     setDifficulty]     = useState(defaultDifficulty || "medium");
   const [maxTurns,       setMaxTurns]       = useState(30);
+  const [enableCoding,   setEnableCoding]   = useState(true);
+  const [secureMode,     setSecureMode]     = useState(true);
+  const [violationLimit, setViolationLimit] = useState(SECURITY_LIMITS.maxViolations);
   const [err,            setErr]            = useState("");
 
   const toggleTopic = (t) =>
@@ -50,6 +364,9 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
       cvText:        cvText.trim(),
       difficulty,
       maxTurns,
+      enableCoding,
+      secureMode,
+      violationLimit,
     });
   };
 
@@ -222,6 +539,37 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
           </div>
         </div>
 
+        <div className="s-field">
+          <label className="s-label">Assessment Controls</label>
+          <div className="s-check-grid">
+            <label className="s-check-row">
+              <input type="checkbox" checked={secureMode} onChange={e => setSecureMode(e.target.checked)} />
+              <span>
+                Secure assessment mode
+                <small>Track tab switches, focus loss, copy/paste, right-click, fullscreen exits, and display risks.</small>
+              </span>
+            </label>
+            <label className="s-check-row">
+              <input type="checkbox" checked={enableCoding} onChange={e => setEnableCoding(e.target.checked)} />
+              <span>
+                Include coding challenge
+                <small>Add an integrated coding exercise with tests and follow-up analysis.</small>
+              </span>
+            </label>
+          </div>
+          <div className="s-threshold-row">
+            <span>Violation limit</span>
+            <input
+              className="s-input s-threshold-input"
+              type="number"
+              min="1"
+              max="20"
+              value={violationLimit}
+              onChange={e => setViolationLimit(Math.max(1, Number(e.target.value) || SECURITY_LIMITS.maxViolations))}
+            />
+          </div>
+        </div>
+
         {err && <p className="s-err">{err}</p>}
 
         <button className="s-start-btn" onClick={handleStart}>
@@ -245,7 +593,7 @@ export default function LiveInterview({
   const [config,     setConfig]     = useState(null);
   const [phase,      setPhase]      = useState("");   // thinking|speaking|recording|submitting|done
   const [currentQ,   setCurrentQ]   = useState("");
-  const [transcript, setTranscript] = useState("");
+  const [, setTranscript] = useState("");
   const [chatLog,    setChatLog]    = useState([]);
   const [report,     setReport]     = useState(null);
   const [turn,       setTurn]       = useState(0);
@@ -253,22 +601,47 @@ export default function LiveInterview({
   const [errMsg,     setErrMsg]     = useState("");
   const [elapsed,    setElapsed]    = useState(0);
   const [isFS,       setIsFS]       = useState(false);
+  const [cameraStatus, setCameraStatus] = useState("off");
+  const [faceStatus, setFaceStatus] = useState("Loading face analysis...");
+  const [faceSnapshot, setFaceSnapshot] = useState(null);
+  const [violations, setViolations] = useState([]);
+  const [securityWarning, setSecurityWarning] = useState("");
+  const [interviewerAlert, setInterviewerAlert] = useState(false);
+  const [codingChallenge, setCodingChallenge] = useState(DEFAULT_CODING_CHALLENGE);
+  const [codeLanguage, setCodeLanguage] = useState("javascript");
+  const [codeText, setCodeText] = useState(CODING_LANGUAGES.javascript.template);
+  const [customInput, setCustomInput] = useState("");
+  const [codeResult, setCodeResult] = useState(null);
 
   const mediaRecRef  = useRef(null);
   const chunksRef    = useRef([]);
   const resolveRef   = useRef(null);
   const streamRef    = useRef(null);
+  const cameraStreamRef = useRef(null);
   const analyserRef  = useRef(null);
+  const audioCtxRef   = useRef(null);
   const volTimer     = useRef(null);
+  const faceTimer    = useRef(null);
   const timerRef     = useRef(null);
   const mounted      = useRef(true);
+  const runActiveRef = useRef(false);
+  const speakTokenRef = useRef(0);
   const containerRef = useRef(null);
   const configRef    = useRef(null);
-  // HeyGen refs
-  const heygenSessionRef = useRef(null);   // HeyGen session_id
-  const heygenReadyRef   = useRef(false);  // true once WebRTC connected
-  const speakResolveRef  = useRef(null);   // resolves _speak() promise
-  const speakTimeoutRef  = useRef(null);   // safety timeout for speak
+  const videoRef     = useRef(null);
+  const phaseRef     = useRef("");
+  const faceModelsLoadedRef = useRef(false);
+  const faceStatsRef = useRef(createFaceStats());
+  const answerMetricsRef = useRef([]);
+  const violationsRef = useRef([]);
+  const proctoringRef = useRef({
+    samples: 0,
+    faceVisible: 0,
+    noFaceSamples: 0,
+    multipleFaceSamples: 0,
+    suspiciousEvents: [],
+  });
+  const codingReportsRef = useRef([]);
 
   useEffect(() => {
     mounted.current = true;
@@ -277,8 +650,13 @@ export default function LiveInterview({
       clearInterval(volTimer.current);
       clearInterval(timerRef.current);
       window.speechSynthesis?.cancel();
+      speakTokenRef.current += 1;
+      runActiveRef.current = false;
       _stopRec();
+      const closeAudio = audioCtxRef.current?.close?.();
+      closeAudio?.catch?.(() => {});
       streamRef.current?.getTracks().forEach(t => t.stop());
+      cameraStreamRef.current?.getTracks().forEach(t => t.stop());
     };
   }, []);
 
@@ -290,6 +668,90 @@ export default function LiveInterview({
   }, []);
 
   useEffect(() => { configRef.current = config; }, [config]);
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+
+  useEffect(() => {
+    if (screen !== "interview" || !cameraStreamRef.current || !videoRef.current) return;
+    videoRef.current.srcObject = cameraStreamRef.current;
+    _startFaceAnalysis();
+    return () => clearInterval(faceTimer.current);
+  }, [screen]);
+
+  function _logViolation(type, detail, severity = "medium") {
+    if (!configRef.current?.secureMode || phaseRef.current === "done") return;
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type,
+      detail,
+      severity,
+      timestamp: new Date().toISOString(),
+    };
+    violationsRef.current = [...violationsRef.current, entry];
+    setViolations(violationsRef.current);
+    setSecurityWarning(detail);
+    window.setTimeout(() => setSecurityWarning(prev => prev === detail ? "" : prev), 4500);
+
+    const limit = configRef.current?.violationLimit || SECURITY_LIMITS.maxViolations;
+    if (violationsRef.current.length >= limit) {
+      setInterviewerAlert(true);
+      setErrMsg("Security threshold exceeded. The interviewer has been notified in the report.");
+    }
+  }
+
+  useEffect(() => {
+    if (screen !== "interview" || !config?.secureMode) return;
+
+    const preventAndLog = (event, type, detail) => {
+      event.preventDefault();
+      _logViolation(type, detail);
+    };
+    const onCopy = event => preventAndLog(event, "copy", "Copy action blocked during secure assessment.");
+    const onCut = event => preventAndLog(event, "cut", "Cut action blocked during secure assessment.");
+    const onPaste = event => preventAndLog(event, "paste", "Paste action blocked during secure assessment.");
+    const onContextMenu = event => preventAndLog(event, "right_click", "Right-click menu blocked during secure assessment.");
+    const onVisibility = () => {
+      if (document.hidden) _logViolation("tab_hidden", "Candidate left the interview tab or minimized the browser.", "high");
+    };
+    const onBlur = () => _logViolation("window_blur", "Interview window lost focus.", "medium");
+    const onFullscreen = () => {
+      if (!document.fullscreenElement && phaseRef.current !== "done") {
+        _logViolation("fullscreen_exit", "Candidate exited full-screen assessment mode.", "high");
+      }
+    };
+    const onBeforeUnload = event => {
+      _logViolation("navigation_attempt", "Candidate attempted to leave or reload the interview.", "high");
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("fullscreenchange", onFullscreen);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("copy", onCopy);
+    document.addEventListener("cut", onCut);
+    document.addEventListener("paste", onPaste);
+    document.addEventListener("contextmenu", onContextMenu);
+
+    const displayInfo = window.screen;
+    if (displayInfo?.isExtended) {
+      _logViolation("multiple_displays", "Multiple displays detected by the browser.", "high");
+    } else if (window.screen && (window.screen.availWidth > window.innerWidth * 1.8 || window.screen.availHeight > window.innerHeight * 1.8)) {
+      _logViolation("display_risk", "Large available display area detected; multiple-monitor check is inconclusive.", "low");
+    }
+    _logViolation("screen_share_limit", "Browser cannot reliably detect external screen-sharing apps; webcam and focus signals will be monitored.", "low");
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("fullscreenchange", onFullscreen);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("copy", onCopy);
+      document.removeEventListener("cut", onCut);
+      document.removeEventListener("paste", onPaste);
+      document.removeEventListener("contextmenu", onContextMenu);
+    };
+  }, [screen, config]);
 
   // ── Audio helpers ────────────────────────────────────────────────────────────
 
@@ -297,7 +759,9 @@ export default function LiveInterview({
     try {
       if (mediaRecRef.current && mediaRecRef.current.state !== "inactive")
         mediaRecRef.current.stop();
-    } catch {}
+    } catch {
+      // Recorder may already be inactive when the user exits or re-records.
+    }
     mediaRecRef.current = null;
     chunksRef.current   = [];
   }
@@ -310,15 +774,22 @@ export default function LiveInterview({
       const AC = window.AudioContext || window.webkitAudioContext;
       if (AC) {
         const ctx = new AC();
+        if (ctx.state === "suspended") await ctx.resume();
         const an  = ctx.createAnalyser();
         an.fftSize = 256;
+        an.smoothingTimeConstant = 0.75;
         ctx.createMediaStreamSource(stream).connect(an);
+        audioCtxRef.current = ctx;
         analyserRef.current = an;
         volTimer.current = setInterval(() => {
           if (!analyserRef.current || !mounted.current) return;
-          const d = new Uint8Array(analyserRef.current.frequencyBinCount);
-          analyserRef.current.getByteFrequencyData(d);
-          setVolume(Math.round(d.reduce((a, b) => a + b, 0) / d.length));
+          const d = new Uint8Array(analyserRef.current.fftSize);
+          analyserRef.current.getByteTimeDomainData(d);
+          const rms = Math.sqrt(d.reduce((sum, value) => {
+            const centered = (value - 128) / 128;
+            return sum + centered * centered;
+          }, 0) / d.length);
+          setVolume(Math.round(rms * 180));
         }, 80);
       }
       return true;
@@ -328,58 +799,170 @@ export default function LiveInterview({
     }
   }
 
-  // ── HeyGen avatar speak — sends text to live WebRTC avatar ──────────────────
-  function _speak(text) {
-    return new Promise(resolve => {
-      if (!text) { resolve(); return; }
-      // If HeyGen avatar is ready, use it
-      if (heygenReadyRef.current && heygenSessionRef.current) {
-        speakResolveRef.current = resolve;
-        api.post("/interview/heygen/task", {
-          session_id: heygenSessionRef.current,
-          text: text.trim(),
-          task_type: "talk",
-        }).catch(() => {
-          // Fallback to browser TTS if HeyGen fails
-          _speakBrowser(text).then(resolve);
-        });
-        // Safety timeout — resolve after estimated duration if AVATAR_STOP event is missed
-        const words = text.split(" ").length;
-        const ms    = Math.max(words * 380 + 1500, 3000);
-        speakTimeoutRef.current = setTimeout(() => {
-          if (speakResolveRef.current) {
-            speakResolveRef.current();
-            speakResolveRef.current = null;
-          }
-        }, ms);
-      } else {
-        // HeyGen not ready yet — fall back to browser TTS
-        _speakBrowser(text).then(resolve);
+  async function _initCamera() {
+    if (cameraStreamRef.current) return true;
+    try {
+      setCameraStatus("starting");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: "user" },
+        audio: false,
+      });
+      cameraStreamRef.current = stream;
+      setCameraStatus("on");
+
+      if (!faceModelsLoadedRef.current) {
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
+          faceapi.nets.faceExpressionNet.loadFromUri("/models"),
+        ]);
+        faceModelsLoadedRef.current = true;
       }
-    });
+      setFaceStatus("Face analysis ready");
+      return true;
+    } catch (err) {
+      console.error("Camera init error:", err);
+      setCameraStatus("blocked");
+      setFaceStatus("Camera unavailable");
+      return false;
+    }
   }
 
-  // Browser TTS fallback
+  function _stopCamera() {
+    clearInterval(faceTimer.current);
+    cameraStreamRef.current?.getTracks().forEach(t => t.stop());
+    cameraStreamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraStatus("off");
+  }
+
+  function _startFaceAnalysis() {
+    clearInterval(faceTimer.current);
+    if (!faceModelsLoadedRef.current || !videoRef.current) return;
+
+    faceTimer.current = setInterval(async () => {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || !mounted.current) return;
+
+      const stats = faceStatsRef.current;
+      const shouldScoreSample = phaseRef.current === "recording";
+      if (shouldScoreSample) stats.samples += 1;
+      proctoringRef.current.samples += 1;
+
+      try {
+        const allFaces = await faceapi.detectAllFaces(
+          video,
+          new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.45 })
+        );
+        if (allFaces.length > 1) {
+          proctoringRef.current.multipleFaceSamples += 1;
+          if (proctoringRef.current.multipleFaceSamples % SECURITY_LIMITS.multipleFaceWarningSamples === 0) {
+            _logViolation("multiple_faces", "Multiple faces detected in the webcam frame.", "high");
+          }
+        }
+
+        const detection = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.45 }))
+          .withFaceExpressions();
+
+        if (!detection) {
+          proctoringRef.current.noFaceSamples += 1;
+          if (proctoringRef.current.noFaceSamples % SECURITY_LIMITS.noFaceWarningSamples === 0) {
+            _logViolation("candidate_absent", "Candidate was not visible in the webcam frame for multiple samples.", "high");
+          }
+          setFaceSnapshot(prev => prev ? { ...prev, detected: false } : { detected: false, dominant: "No face", confidence: 0 });
+          setFaceStatus("No face detected");
+          return;
+        }
+
+        const dominant = topExpression(detection.expressions);
+        proctoringRef.current.faceVisible += 1;
+        if (shouldScoreSample) {
+          stats.detected += 1;
+          stats.expressions[dominant] = (stats.expressions[dominant] || 0) + 1;
+        }
+        const confidence = Math.round((detection.expressions[dominant] || 0) * 100);
+
+        setFaceSnapshot({ detected: true, dominant, confidence });
+        setFaceStatus(phaseRef.current === "recording" ? "Analysing expression" : "Camera ready");
+      } catch (err) {
+        console.error("Face analysis error:", err);
+        setFaceStatus("Face analysis paused");
+      }
+    }, 1200);
+  }
+
+  function _finishWithReport(rpt) {
+    const deliveryAnalysis = buildDeliveryAnalysis(faceStatsRef.current, answerMetricsRef.current);
+    const securityAnalysis = buildSecurityAnalysis(
+      violationsRef.current,
+      configRef.current?.violationLimit || SECURITY_LIMITS.maxViolations
+    );
+    const proctoringAnalysis = buildProctoringAnalysis(proctoringRef.current);
+    const codingAnalysis = buildCodingAnalysis(codingReportsRef.current);
+    const skillScores = {
+      problem_solving: rpt.topicScores?.problem_solving ?? codingAnalysis.score,
+      coding_skills: codingAnalysis.attempted ? codingAnalysis.score : (rpt.topicScores?.coding_skills ?? 0),
+      communication: rpt.topicScores?.communication ?? 0,
+      technical_knowledge: rpt.topicScores?.technical_knowledge ?? 0,
+      confidence: Math.max(0, Math.min(100, deliveryAnalysis.detectedPct - deliveryAnalysis.fillerRate * 2)),
+      behavioral_responses: rpt.topicScores?.behavioral_responses ?? rpt.topicScores?.communication ?? 0,
+    };
+    const hiringRecommendation =
+      rpt.overallScore >= 80 && securityAnalysis.highRisk === 0 ? "Strong hire" :
+      rpt.overallScore >= 65 && securityAnalysis.highRisk <= 1 ? "Hire / continue process" :
+      rpt.overallScore >= 50 ? "Borderline - needs review" :
+      "Do not proceed";
+
+    setReport({
+      ...rpt,
+      skillScores,
+      hiringRecommendation,
+      overallCandidateRanking: rpt.overallScore >= 80 ? "Top tier" : rpt.overallScore >= 65 ? "Competitive" : rpt.overallScore >= 50 ? "Developing" : "Below bar",
+      deliveryAnalysis,
+      securityAnalysis,
+      proctoringAnalysis,
+      codingAnalysis,
+      transcript: chatLog,
+    });
+    setPhase("done");
+  }
+
+  // ── Speak via browser TTS (always used — no external avatar API needed) ──────
+  function _speak(text) {
+    return _speakBrowser(text);
+  }
+
+  // Browser TTS
   function _speakBrowser(text) {
     return new Promise(resolve => {
-      window.speechSynthesis?.cancel();
+      const synth = window.speechSynthesis;
+      const token = speakTokenRef.current + 1;
+      speakTokenRef.current = token;
+      synth?.cancel();
       if (!window.speechSynthesis || !text) { resolve(); return; }
-      const parts = text.match(/[^.!?]+[.!?]+/g) || [text];
+      const parts = text
+        .replace(/\s+/g, " ")
+        .match(/[^.!?]+(?:[.!?]+|$)/g)
+        ?.map(part => part.trim())
+        .filter(Boolean) || [text.trim()];
       let i = 0;
       const next = () => {
-        if (i >= parts.length || !mounted.current) { resolve(); return; }
+        if (token !== speakTokenRef.current || i >= parts.length || !mounted.current) {
+          resolve();
+          return;
+        }
         const u = new SpeechSynthesisUtterance(parts[i++].trim());
-        u.rate = 1.1; u.pitch = 1;
-        const voices = window.speechSynthesis.getVoices();
+        u.rate = 1.35; u.pitch = 1;
+        const voices = synth.getVoices();
         const v = voices.find(v => v.name.includes("Google") && v.lang === "en-US")
                || voices.find(v => v.lang.startsWith("en"));
         if (v) u.voice = v;
-        u.onend  = next;
-        u.onerror = next;
-        window.speechSynthesis.speak(u);
+        u.onend  = () => token === speakTokenRef.current && next();
+        u.onerror = () => token === speakTokenRef.current && next();
+        synth.speak(u);
       };
-      if (window.speechSynthesis.getVoices().length === 0) {
-        window.speechSynthesis.addEventListener("voiceschanged", next, { once: true });
+      if (synth.getVoices().length === 0) {
+        synth.addEventListener("voiceschanged", next, { once: true });
       } else {
         next();
       }
@@ -389,13 +972,18 @@ export default function LiveInterview({
   // ── MediaRecorder start ──────────────────────────────────────────────────────
   function _startRecording() {
     const stream = streamRef.current;
-    if (!stream) return false;
+    if (!stream || !stream.getAudioTracks().some(track => track.readyState === "live")) {
+      setErrMsg("Microphone is not active. Allow microphone access and restart the interview.");
+      return false;
+    }
+    audioCtxRef.current?.resume?.().catch?.(() => {});
     chunksRef.current = [];
     const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", ""]
       .find(t => !t || MediaRecorder.isTypeSupported(t)) || "";
     try {
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
       mr.ondataavailable = e => { if (e.data?.size > 0) chunksRef.current.push(e.data); };
+      mr.onerror = e => setErrMsg("Recording error: " + (e.error?.message || "Microphone recording stopped."));
       mr.start(200);
       mediaRecRef.current = mr;
       return true;
@@ -438,16 +1026,47 @@ export default function LiveInterview({
     return new Promise(resolve => { resolveRef.current = resolve; });
   }
 
+  function _codingPromptText(challenge) {
+    return `${challenge.title}: ${challenge.prompt}`;
+  }
+
   // ── Main interview async loop ────────────────────────────────────────────────
   async function _runInterview(cfg) {
     let history = [];
     const topicStr = cfg.topics.join(", ");
+    const codingTurn = cfg.enableCoding ? Math.max(1, Math.floor(cfg.maxTurns / 2)) : -1;
 
     for (let t = 0; t < cfg.maxTurns; t++) {
       if (!mounted.current) return;
 
       setPhase("thinking");
       setTranscript("");
+
+      if (t === codingTurn) {
+        const challenge = DEFAULT_CODING_CHALLENGE;
+        setCodingChallenge(challenge);
+        setCodeResult(null);
+        setCodeText(CODING_LANGUAGES[codeLanguage].template);
+        setCustomInput("");
+        const prompt = _codingPromptText(challenge);
+        setCurrentQ(prompt);
+        setChatLog(prev => [...prev, { role: "assistant", content: prompt }]);
+        setTurn(t + 1);
+        setPhase("speaking");
+        await _speak(`Let's do a coding exercise. ${challenge.prompt}`);
+        if (!mounted.current) return;
+        setPhase("coding");
+
+        const codingSummary = await _waitForAnswer();
+        if (!mounted.current) return;
+        setChatLog(prev => [...prev, { role: "user", content: codingSummary }]);
+        history = [
+          ...history,
+          { role: "assistant", content: prompt },
+          { role: "user", content: codingSummary },
+        ];
+        continue;
+      }
 
       // Ask AI
       let aiData;
@@ -477,7 +1096,7 @@ export default function LiveInterview({
         setCurrentQ("Interview complete!");
         setPhase("speaking");
         await _speak(question || "Thank you — that concludes our interview.");
-        if (mounted.current) { setReport(rpt); setPhase("done"); }
+        if (mounted.current) _finishWithReport(rpt);
         return;
       }
 
@@ -525,16 +1144,24 @@ export default function LiveInterview({
         setPhase("speaking");
         setCurrentQ("Interview complete!");
         await _speak(d.question || "Thank you — that concludes our interview.");
-        if (mounted.current) { setReport(d.report); setPhase("done"); }
+        if (mounted.current) _finishWithReport(d.report);
       }
-    } catch {}
+    } catch (err) {
+      console.error("Final report request failed:", err);
+    }
   }
 
   // ── Handle Start ─────────────────────────────────────────────────────────────
-  const handleStart = useCallback(async (cfg) => {
+  async function handleStart(cfg) {
+    if (runActiveRef.current) return;
+    runActiveRef.current = true;
     setErrMsg("");
     const micOk = await _initMic();
-    if (!micOk) return;
+    if (!micOk) {
+      runActiveRef.current = false;
+      return;
+    }
+    await _initCamera();
 
     setConfig(cfg);
     configRef.current = cfg;
@@ -545,18 +1172,80 @@ export default function LiveInterview({
     setTranscript("");
     setCurrentQ("");
     setElapsed(0);
+    setFaceSnapshot(null);
+    setViolations([]);
+    setSecurityWarning("");
+    setInterviewerAlert(false);
+    setCodeResult(null);
+    faceStatsRef.current = createFaceStats();
+    answerMetricsRef.current = [];
+    violationsRef.current = [];
+    proctoringRef.current = { samples: 0, faceVisible: 0, noFaceSamples: 0, multipleFaceSamples: 0, suspiciousEvents: [] };
+    codingReportsRef.current = [];
 
     // Enter fullscreen
-    try { await containerRef.current?.requestFullscreen(); } catch {}
+    try {
+      await containerRef.current?.requestFullscreen();
+    } catch {
+      // Fullscreen can be blocked by browser settings; the interview still works.
+    }
 
     // Start timer
     timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
 
     // Run the loop
-    await _runInterview(cfg);
-  }, []);
+    try {
+      await _runInterview(cfg);
+    } finally {
+      runActiveRef.current = false;
+    }
+  }
 
   // ── Submit answer ─────────────────────────────────────────────────────────────
+  function handleLanguageChange(lang) {
+    setCodeLanguage(lang);
+    setCodeText(CODING_LANGUAGES[lang].template);
+    setCodeResult(null);
+  }
+
+  async function handleRunCode() {
+    setErrMsg("");
+    const result = await analyzeCodeSubmission({
+      code: codeText,
+      language: codeLanguage,
+      challenge: codingChallenge,
+      customInputRaw: customInput,
+    });
+    if (!mounted.current) return null;
+    setCodeResult(result);
+    return result;
+  }
+
+  async function handleSubmitCode() {
+    if (phase !== "coding") return;
+    setPhase("submitting");
+    const result = await handleRunCode();
+    if (!result) return;
+    codingReportsRef.current = [...codingReportsRef.current, {
+      challengeTitle: codingChallenge.title,
+      language: CODING_LANGUAGES[codeLanguage].label,
+      code: codeText,
+      ...result,
+    }];
+    const summary = [
+      `Coding submission for ${codingChallenge.title} in ${CODING_LANGUAGES[codeLanguage].label}.`,
+      `Correctness: ${result.correctness}/100 (${result.passed}/${result.total} tests passed).`,
+      `Estimated time complexity: ${result.timeComplexity}.`,
+      `Estimated space complexity: ${result.spaceComplexity}.`,
+      result.error ? `Execution error: ${result.error}.` : "",
+      `Code:\n${codeText}`,
+    ].filter(Boolean).join("\n");
+    if (resolveRef.current) {
+      resolveRef.current(summary);
+      resolveRef.current = null;
+    }
+  }
+
   const handleSubmit = useCallback(async () => {
     if (phase !== "recording") return;
     setPhase("submitting");
@@ -573,6 +1262,7 @@ export default function LiveInterview({
     }
 
     setTranscript(text);
+    answerMetricsRef.current.push(analyseSpeechDelivery(text));
     if (resolveRef.current) {
       resolveRef.current(text.trim());
       resolveRef.current = null;
@@ -592,8 +1282,15 @@ export default function LiveInterview({
   const handleExit = useCallback(async () => {
     clearInterval(timerRef.current);
     _stopRec();
+    _stopCamera();
     window.speechSynthesis?.cancel();
-    try { await document.exitFullscreen(); } catch {}
+    speakTokenRef.current += 1;
+    runActiveRef.current = false;
+    try {
+      await document.exitFullscreen();
+    } catch {
+      // Ignore when the page is not currently in fullscreen.
+    }
     setScreen("setup");
     setPhase("");
     setReport(null);
@@ -657,14 +1354,14 @@ export default function LiveInterview({
           {/* Main area */}
           <main className="ir-main">
 
-            {/* LEFT — HeyGen Live Avatar */}
+            {/* LEFT — Animated AI Avatar */}
             <aside className="ir-avatar-col">
-              <HeyGenAvatar
-                phase={phase}
-                sessionIdRef={heygenSessionRef}
-                readyRef={heygenReadyRef}
-                speakResolveRef={speakResolveRef}
-                speakTimeoutRef={speakTimeoutRef}
+              <AnimatedAvatar phase={phase} />
+              <CandidateCamera
+                videoRef={videoRef}
+                status={cameraStatus}
+                faceStatus={faceStatus}
+                snapshot={faceSnapshot}
               />
 
               {/* Mic volume bar */}
@@ -765,6 +1462,36 @@ export default function LiveInterview({
                     </div>
                   </div>
 
+                  {report.deliveryAnalysis && (
+                    <div className="ir-delivery">
+                      <div>
+                        <p className="ir-delivery-kicker">Delivery and Face Expression</p>
+                        <p className="ir-delivery-summary">{report.deliveryAnalysis.summary}</p>
+                      </div>
+                      <div className="ir-delivery-stats">
+                        <MiniMetric label="Face visible" value={`${report.deliveryAnalysis.detectedPct}%`} />
+                        <MiniMetric label="Main expression" value={report.deliveryAnalysis.dominantExpression} />
+                        <MiniMetric label="Fillers" value={report.deliveryAnalysis.totalFillers} />
+                        <MiniMetric label="Filler rate" value={`${report.deliveryAnalysis.fillerRate}%`} />
+                      </div>
+                      {report.deliveryAnalysis.expressionMix?.length > 0 && (
+                        <div className="ir-expression-mix">
+                          {report.deliveryAnalysis.expressionMix.map(item => (
+                            <div key={item.label} className="ir-expression-row">
+                              <span>{item.label}</span>
+                              <div className="ir-expression-track"><div style={{ width: `${item.percent}%` }} /></div>
+                              <strong>{item.percent}%</strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="ir-fb-card ir-fb-amber">
+                        <p className="ir-fb-head">Improvement Notes</p>
+                        {report.deliveryAnalysis.improvements.map((s, i) => <p key={i} className="ir-fb-item">â€¢ {s}</p>)}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="ir-log">
                     <p className="ir-log-title">💬 Interview Transcript</p>
                     {chatLog.map((m, i) => (
@@ -791,145 +1518,112 @@ export default function LiveInterview({
   );
 }
 
-// ─── HeyGen Live Avatar ────────────────────────────────────────────────────────
-function HeyGenAvatar({ phase, sessionIdRef, readyRef, speakResolveRef, speakTimeoutRef }) {
-  const videoRef  = useRef(null);
-  const pcRef     = useRef(null);
-  const [status, setStatus] = useState("connecting"); // connecting | ready | error
-
-  useEffect(() => {
-    let cancelled = false;
-    let pc = null;
-
-    (async () => {
-      try {
-        setStatus("connecting");
-
-        // 1. Ask backend to create HeyGen session
-        const { data } = await api.post("/interview/heygen/new");
-        if (cancelled) return;
-
-        const hgData = data?.data;
-        if (!hgData) { setStatus("error"); return; }
-
-        const { session_id, sdp: remoteSdp, ice_servers2 } = hgData;
-        sessionIdRef.current = session_id;
-
-        // 2. Create WebRTC peer connection using HeyGen's ICE servers
-        pc = new RTCPeerConnection({ iceServers: ice_servers2 || [] });
-        pcRef.current = pc;
-
-        // 3. When avatar video track arrives, attach to <video>
-        pc.ontrack = (e) => {
-          if (videoRef.current && e.streams?.[0]) {
-            videoRef.current.srcObject = e.streams[0];
-            videoRef.current.play().catch(() => {});
-          }
-        };
-
-        // 4. Handle avatar stop-talking (resolve _speak promise)
-        pc.ondatachannel = (e) => {
-          e.channel.onmessage = (msg) => {
-            try {
-              const payload = JSON.parse(msg.data);
-              if (payload?.type === "avatar_stop_talking") {
-                clearTimeout(speakTimeoutRef.current);
-                if (speakResolveRef.current) {
-                  speakResolveRef.current();
-                  speakResolveRef.current = null;
-                }
-              }
-            } catch {}
-          };
-        };
-
-        // 5. Set HeyGen's SDP offer as remote description
-        await pc.setRemoteDescription(new RTCSessionDescription(remoteSdp));
-
-        // 6. Create our SDP answer
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-
-        // 7. Send answer back to HeyGen via backend
-        await api.post("/interview/heygen/start", {
-          session_id,
-          sdp: answer,
-        });
-
-        if (!cancelled) {
-          readyRef.current = true;
-          setStatus("ready");
-        }
-      } catch (err) {
-        console.error("HeyGen init error:", err);
-        if (!cancelled) setStatus("error");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      readyRef.current = false;
-      // Stop session
-      if (sessionIdRef.current) {
-        api.post("/interview/heygen/stop", { session_id: sessionIdRef.current }).catch(() => {});
-        sessionIdRef.current = null;
-      }
-      pc?.close();
-      pcRef.current = null;
-    };
-  }, []);
+// ─── Animated AI Avatar (no external API needed) ──────────────────────────────
+function AnimatedAvatar({ phase }) {
+  const isSpeaking   = phase === "speaking";
+  const isListening  = phase === "recording";
+  const isThinking   = phase === "thinking" || phase === "submitting";
 
   return (
-    <div className={`ir-video-card${phase === "speaking" ? " ir-video-speaking" : phase === "recording" ? " ir-video-listening" : phase === "thinking" ? " ir-video-thinking" : ""}`}>
+    <div className={`ir-video-card${isSpeaking ? " ir-video-speaking" : isListening ? " ir-video-listening" : isThinking ? " ir-video-thinking" : ""}`}>
       <div className="ir-face-wrap">
 
-        {/* Live HeyGen video stream */}
-        <video
-          ref={videoRef}
-          className="ir-heygen-video"
-          autoPlay
-          playsInline
+        {/* Animated ring glow */}
+        <div className={`av-ring-outer${isSpeaking ? " av-ring-speaking" : isListening ? " av-ring-listening" : ""}`} />
+
+        {/* Avatar portrait image */}
+        <img
+          src={ALEX_AVATAR}
+          alt="Alex — AI Interviewer"
+          className={`ir-face-img${isSpeaking ? " av-img-talking" : isListening ? " av-img-listening" : isThinking ? " av-img-thinking" : " av-img-idle"}`}
+          draggable={false}
         />
 
-        {/* Loading overlay */}
-        {status === "connecting" && (
-          <div className="ir-hg-loading">
-            <div className="ir-dots"><span /><span /><span /></div>
-            <p>Connecting to Alex…</p>
+        <div className={`av-life-layer${isSpeaking ? " av-life-speaking" : isListening ? " av-life-listening" : ""}`}>
+          <span className="av-eye av-eye-left" />
+          <span className="av-eye av-eye-right" />
+          <span className="av-mouth">
+            <span />
+            <span />
+            <span />
+          </span>
+        </div>
+
+        {/* Speaking wave bars overlay */}
+        {isSpeaking && (
+          <div className="av-wave-overlay">
+            {[...Array(7)].map((_, i) => (
+              <span key={i} className="av-wave-bar" style={{ animationDelay: `${i * 0.1}s` }} />
+            ))}
           </div>
         )}
 
-        {/* Error overlay */}
-        {status === "error" && (
-          <div className="ir-hg-loading">
-            <p style={{ color: "#f87171" }}>⚠️ Avatar unavailable<br /><small>Using voice-only mode</small></p>
+        {/* Thinking / processing spinner overlay */}
+        {isThinking && (
+          <div className="av-thinking-overlay">
+            <div className="av-think-ring" />
           </div>
         )}
 
         {/* Video overlay — nameplate + status badge */}
         <div className="ir-video-overlay">
           <div className="ir-nameplate">
-            <span className={`ir-np-dot${phase === "speaking" ? " ir-np-dot-live" : ""}`} />
+            <span className={`ir-np-dot${isSpeaking ? " ir-np-dot-live" : isListening ? " ir-np-dot-listen" : ""}`} />
             Alex
           </div>
-          {phase === "speaking"   && <div className="ir-speaking-badge"><WaveBars /> Speaking</div>}
-          {phase === "thinking"   && <div className="ir-thinking-badge"><Spin /> Thinking</div>}
-          {phase === "recording"  && <div className="ir-listening-badge"><Pulse /> Listening</div>}
-          {phase === "submitting" && <div className="ir-thinking-badge"><Spin /> Processing</div>}
+          {isSpeaking  && <div className="ir-speaking-badge"><WaveBars /> Speaking</div>}
+          {isThinking  && <div className="ir-thinking-badge"><Spin /> Thinking</div>}
+          {isListening && <div className="ir-listening-badge"><Pulse /> Listening</div>}
         </div>
       </div>
-      <div className="ir-role-tag">Senior Software Engineer · Interviewer</div>
+      <div className="ir-role-tag">Senior Software Engineer · AI Interviewer</div>
     </div>
   );
 }
 
 // ─── Small sub-components ──────────────────────────────────────────────────────
+function CandidateCamera({ videoRef, status, faceStatus, snapshot }) {
+  const isOn = status === "on";
+  const expression = snapshot?.detected ? snapshot.dominant : status === "blocked" ? "Camera blocked" : "Waiting";
+
+  return (
+    <div className="ir-camera-card">
+      <div className="ir-camera-frame">
+        <video ref={videoRef} className="ir-camera-video" autoPlay muted playsInline />
+        {!isOn && (
+          <div className="ir-camera-empty">
+            <span>{status === "blocked" ? "Camera unavailable" : "Starting camera"}</span>
+          </div>
+        )}
+        <div className="ir-camera-overlay">
+          <span className={`ir-camera-dot ${snapshot?.detected ? "ir-camera-dot-on" : ""}`} />
+          <span>{expression}</span>
+          {snapshot?.detected && <strong>{snapshot.confidence}%</strong>}
+        </div>
+      </div>
+      <div className="ir-camera-meta">
+        <span>Candidate camera</span>
+        <small>{faceStatus}</small>
+      </div>
+    </div>
+  );
+}
+
 function ScoreCard({ label, score, big }) {
   const c = score >= 80 ? "#22c55e" : score >= 60 ? "#f59e0b" : "#ef4444";
   return (
     <div className={`ir-score-card${big ? " ir-score-big" : ""}`}>
       <p className="ir-score-num" style={{ color: c }}>{score}</p>
       <p className="ir-score-lbl">{label}</p>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value }) {
+  return (
+    <div className="ir-mini-metric">
+      <strong>{value}</strong>
+      <span>{label}</span>
     </div>
   );
 }
@@ -1135,6 +1829,11 @@ const CSS = `
   .ir-avatar-col { width:100%; padding:14px 16px; border-right:none;
                    border-bottom:1px solid rgba(255,255,255,.06);
                    flex-direction:row; justify-content:flex-start; }
+  .ir-video-card, .ir-camera-card { max-width:50%; }
+}
+@media(max-width:620px){
+  .ir-avatar-col { flex-direction:column; }
+  .ir-video-card, .ir-camera-card { max-width:100%; }
 }
 
 /* Video card — full height portrait, fills the left half */
@@ -1181,6 +1880,8 @@ const CSS = `
   top:0; left:0; width:100%; height:100%;
   object-fit:cover; object-position:center top;
   display:block; user-select:none;
+  transform-origin:50% 42%;
+  will-change:transform, filter;
 }
 
 /* HeyGen live video stream */
@@ -1199,47 +1900,163 @@ const CSS = `
   font-size:13px; color:#94a3b8; text-align:center; padding:12px;
 }
 
-/* Jaw overlay container — clips to bottom 30% of face */
-.ir-jaw-overlay {
+/* ─── AnimatedAvatar CSS ──────────────────────────────────────────────────── */
+
+/* Animated ring that pulses behind the avatar */
+.av-ring-outer {
   position:absolute;
-  top:70%; left:0; width:100%;
-  height:30%;
-  overflow:hidden;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:70%; padding-bottom:70%;
+  border-radius:50%;
+  z-index:1; pointer-events:none;
+  transition:all .4s;
+}
+.av-ring-speaking {
+  box-shadow:0 0 0 8px rgba(99,102,241,.25), 0 0 60px rgba(99,102,241,.35);
+  animation:av-ring-pulse 1.2s ease-in-out infinite;
+}
+.av-ring-listening {
+  box-shadow:0 0 0 8px rgba(34,197,94,.2), 0 0 40px rgba(34,197,94,.25);
+  animation:av-ring-pulse-green 1.4s ease-in-out infinite;
+}
+@keyframes av-ring-pulse {
+  0%,100% { box-shadow:0 0 0 8px rgba(99,102,241,.25), 0 0 60px rgba(99,102,241,.35); }
+  50%      { box-shadow:0 0 0 18px rgba(99,102,241,.1), 0 0 80px rgba(99,102,241,.5); }
+}
+@keyframes av-ring-pulse-green {
+  0%,100% { box-shadow:0 0 0 8px rgba(34,197,94,.2), 0 0 40px rgba(34,197,94,.25); }
+  50%      { box-shadow:0 0 0 16px rgba(34,197,94,.08), 0 0 60px rgba(34,197,94,.35); }
 }
 
-/* The jaw image — positioned to show the correct part of the face */
-.ir-jaw-img {
-  position:absolute;
-  /* Place the image so its bottom-30% is visible */
-  bottom:0; left:0;
-  width:100%;
-  /* Height must be 100/30 * 100% = 333% to position correctly */
-  height:333%;
-  object-fit:cover; object-position:center top;
-  display:block; user-select:none;
-  transform-origin:top center;
+/* Talking animation — subtle scale breathe on the portrait */
+.av-img-idle { animation:av-idle-breathe 5.5s ease-in-out infinite; }
+.av-img-listening { animation:av-listen-lean 3.8s ease-in-out infinite; }
+.av-img-thinking {
+  filter:saturate(.92) brightness(.92);
+  animation:av-thinking-drift 3s ease-in-out infinite;
+}
+.av-img-talking { animation:av-talking .52s ease-in-out infinite alternate; }
+@keyframes av-idle-breathe {
+  0%,100% { transform:scale(1) translateY(0); }
+  45%     { transform:scale(1.012) translateY(-2px); }
+  70%     { transform:scale(1.006) translateX(1px); }
+}
+@keyframes av-listen-lean {
+  0%,100% { transform:scale(1.012) translateX(0) rotate(0deg); }
+  50%     { transform:scale(1.018) translateX(-3px) rotate(-.45deg); }
+}
+@keyframes av-thinking-drift {
+  0%,100% { transform:scale(1.006) translateY(0); }
+  50%     { transform:scale(1.016) translateY(-3px); }
+}
+@keyframes av-talking {
+  from { transform:scale(1.012) translateY(0); }
+  to   { transform:scale(1.028) translateY(-3px); }
 }
 
-/* Jaw talking animation — moves the jaw img down */
-.ir-jaw-talking {
-  animation:jaw-open 0.15s ease-in-out infinite alternate;
-}
-@keyframes jaw-open {
-  from { transform:translateY(0);  }
-  to   { transform:translateY(5px); }
-}
-
-/* Mouth gap SVG — sits at the jaw boundary (70% down) */
-.ir-mouth-gap {
+/* Lightweight expression layer for blink and speech movement */
+.av-life-layer {
   position:absolute;
-  top:calc(70% - 10px);
-  left:50%;
-  transform:translateX(-50%);
-  width:38%;
-  z-index:5;
+  inset:0;
+  z-index:7;
   pointer-events:none;
+  opacity:.85;
 }
-.ir-mouth-gap svg { width:100%; height:auto; display:block; }
+.av-eye {
+  position:absolute;
+  top:31%;
+  width:8%;
+  height:2px;
+  border-radius:999px;
+  background:rgba(15,23,42,.72);
+  opacity:.28;
+  transform-origin:center;
+  animation:av-blink 5.8s ease-in-out infinite;
+}
+.av-eye-left { left:37%; }
+.av-eye-right { right:36%; animation-delay:.08s; }
+@keyframes av-blink {
+  0%, 92%, 100% { transform:scaleY(.35); opacity:.18; }
+  94%, 96%     { transform:scaleY(2.8); opacity:.48; }
+}
+.av-mouth {
+  position:absolute;
+  left:50%;
+  top:58%;
+  width:16%;
+  height:18px;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  gap:3px;
+  opacity:0;
+}
+.av-mouth span {
+  width:22%;
+  height:5px;
+  border-radius:999px;
+  background:rgba(15,23,42,.78);
+  box-shadow:0 0 10px rgba(255,255,255,.12);
+  animation:av-mouth-talk .34s ease-in-out infinite alternate;
+}
+.av-mouth span:nth-child(2) { animation-delay:.08s; }
+.av-mouth span:nth-child(3) { animation-delay:.16s; }
+.av-life-speaking .av-mouth { opacity:.72; }
+.av-life-listening .av-eye {
+  opacity:.35;
+  animation-duration:4.4s;
+}
+@keyframes av-mouth-talk {
+  from { height:4px; transform:translateY(0); }
+  to   { height:15px; transform:translateY(2px); }
+}
+
+/* Speaking wave bars overlay (bottom of avatar) */
+.av-wave-overlay {
+  position:absolute;
+  bottom:52px; left:50%;
+  transform:translateX(-50%);
+  display:flex; align-items:flex-end; gap:3px;
+  z-index:8; pointer-events:none;
+  height:32px;
+}
+.av-wave-bar {
+  display:inline-block;
+  width:4px; border-radius:3px;
+  background:linear-gradient(to top, #6366f1, #a78bfa);
+  animation:av-wave-dance .6s ease-in-out infinite alternate;
+  box-shadow:0 0 6px rgba(99,102,241,.6);
+}
+@keyframes av-wave-dance {
+  0%   { height:4px;  opacity:.7; }
+  100% { height:28px; opacity:1; }
+}
+
+/* Thinking spinner overlay */
+.av-thinking-overlay {
+  position:absolute;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  z-index:7; pointer-events:none;
+}
+.av-think-ring {
+  width:56px; height:56px;
+  border-radius:50%;
+  border:3px solid rgba(59,130,246,.15);
+  border-top-color:#3b82f6;
+  animation:s-spin 1s linear infinite;
+}
+
+/* Green dot for listening state */
+.ir-np-dot-listen {
+  background:#22c55e;
+  box-shadow:0 0 6px rgba(34,197,94,.8);
+  animation:ir-blink 1.3s ease-in-out infinite;
+}
+
+
 
 /* Video overlay: nameplate, speaking badge */
 .ir-video-overlay {
@@ -1283,6 +2100,44 @@ const CSS = `
 }
 
 /* ─ Content panel — right half */
+.ir-camera-card {
+  width:100%; max-width:480px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:14px; overflow:hidden;
+  background:rgba(15,23,42,.9);
+}
+.ir-camera-frame {
+  position:relative; width:100%; aspect-ratio:16/9;
+  background:#050a14; overflow:hidden;
+}
+.ir-camera-video {
+  width:100%; height:100%; object-fit:cover;
+  transform:scaleX(-1); display:block;
+}
+.ir-camera-empty {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:rgba(2,6,23,.9); color:#94a3b8; font-size:13px;
+}
+.ir-camera-overlay {
+  position:absolute; left:10px; right:10px; bottom:10px;
+  display:flex; align-items:center; gap:7px;
+  background:rgba(2,6,23,.78); border:1px solid rgba(255,255,255,.09);
+  border-radius:999px; color:#e2e8f0; padding:6px 10px; font-size:12px;
+  text-transform:capitalize; backdrop-filter:blur(8px);
+}
+.ir-camera-overlay strong { margin-left:auto; color:#93c5fd; }
+.ir-camera-dot {
+  width:8px; height:8px; border-radius:50%; background:#64748b; flex-shrink:0;
+}
+.ir-camera-dot-on {
+  background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,.8);
+}
+.ir-camera-meta {
+  display:flex; justify-content:space-between; gap:10px; align-items:center;
+  padding:9px 11px; font-size:12px; color:#e2e8f0;
+}
+.ir-camera-meta small { color:#64748b; text-align:right; }
+
 .ir-content {
   flex:1;
   min-width:0;
@@ -1393,6 +2248,45 @@ const CSS = `
 .ir-fb-green .ir-fb-head { color:#34d399; }
 .ir-fb-amber .ir-fb-head { color:#f59e0b; }
 .ir-fb-item  { font-size:13px; color:#94a3b8; margin:0 0 5px; line-height:1.5; }
+
+.ir-delivery {
+  background:rgba(59,130,246,.04); border:1px solid rgba(59,130,246,.16);
+  border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:14px;
+}
+.ir-delivery-kicker {
+  margin:0 0 6px; font-size:12px; font-weight:800; letter-spacing:.05em;
+  text-transform:uppercase; color:#60a5fa;
+}
+.ir-delivery-summary {
+  margin:0; color:#cbd5e1; font-size:14px; line-height:1.6;
+}
+.ir-delivery-stats {
+  display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px;
+}
+@media(max-width:620px){ .ir-delivery-stats{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+.ir-mini-metric {
+  border:1px solid rgba(255,255,255,.08); border-radius:10px;
+  background:rgba(255,255,255,.04); padding:12px; min-width:0;
+}
+.ir-mini-metric strong {
+  display:block; color:#f8fafc; font-size:18px; text-transform:capitalize;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ir-mini-metric span {
+  display:block; color:#64748b; font-size:10px; margin-top:4px; text-transform:uppercase;
+}
+.ir-expression-mix { display:flex; flex-direction:column; gap:8px; }
+.ir-expression-row {
+  display:grid; grid-template-columns:78px 1fr 44px; gap:10px; align-items:center;
+  color:#94a3b8; font-size:12px; text-transform:capitalize;
+}
+.ir-expression-row strong { color:#cbd5e1; text-align:right; }
+.ir-expression-track {
+  height:8px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden;
+}
+.ir-expression-track div {
+  height:100%; border-radius:inherit; background:linear-gradient(90deg,#38bdf8,#22c55e);
+}
 
 .ir-log { background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06);
           border-radius:12px; padding:16px; }
