@@ -18,8 +18,38 @@ const EXPRESSION_LABELS = ["neutral", "happy", "surprised", "sad", "angry", "fea
 const FILLER_WORDS = ["um", "uh", "like", "actually", "basically", "literally", "you know", "i mean", "sort of", "kind of"];
 const SECURITY_LIMITS = {
   maxViolations: 5,
+  warningThresholds: [1, 3, 5],
   noFaceWarningSamples: 3,
   multipleFaceWarningSamples: 2,
+  resizeRatioThreshold: 0.22,
+};
+
+const WARNING_TIER_MESSAGES = [
+  "Please remain focused on the interview window.",
+  "Multiple focus violations detected.",
+  "Flag candidate for review.",
+];
+
+const VIOLATION_TYPE_LABELS = {
+  copy: "Copy attempt",
+  cut: "Cut attempt",
+  paste: "Paste attempt",
+  right_click: "Context menu",
+  tab_hidden: "Tab switch / minimize",
+  window_blur: "Window focus loss",
+  fullscreen_exit: "Fullscreen exit",
+  navigation_attempt: "Navigation / refresh",
+  multiple_displays: "Multiple monitors",
+  display_risk: "Display risk",
+  screen_share_limit: "Screen share note",
+  multiple_faces: "Multiple faces",
+  candidate_absent: "Candidate absent",
+  window_resize: "Excessive resize",
+  keyboard_shortcut: "Keyboard shortcut",
+  interview_start: "Interview started",
+  interview_end: "Interview ended",
+  coding_submission: "Coding submission",
+  coding_run: "Code execution",
 };
 
 const CODING_LANGUAGES = {
@@ -139,6 +169,44 @@ function buildSecurityAnalysis(violations, threshold) {
     summary: violations.length
       ? `${violations.length} secure-mode event(s) were logged, including ${highRisk} high-risk event(s).`
       : "No secure-mode violations were logged.",
+  };
+}
+
+function getWarningTier(count, thresholds) {
+  if (count >= thresholds[2]) return 3;
+  if (count >= thresholds[1]) return 2;
+  if (count >= thresholds[0]) return 1;
+  return 0;
+}
+
+function buildIntegrityReport({ violations, proctoring, codingReports, codingActivity, executionHistory, startedAt, endedAt, thresholds }) {
+  const tier = getWarningTier(violations.length, thresholds);
+  const flaggedForReview = tier >= 3;
+  return {
+    startedAt,
+    endedAt,
+    durationSec: startedAt && endedAt ? Math.round((new Date(endedAt) - new Date(startedAt)) / 1000) : 0,
+    totalEvents: violations.length,
+    warningTier: tier,
+    warningMessage: tier > 0 ? WARNING_TIER_MESSAGES[tier - 1] : null,
+    flaggedForReview,
+    thresholds,
+    events: violations,
+    byType: violations.reduce((acc, item) => {
+      acc[item.type] = (acc[item.type] || 0) + 1;
+      return acc;
+    }, {}),
+    proctoringSummary: buildProctoringAnalysis(proctoring),
+    codingSummary: buildCodingAnalysis(codingReports),
+    codingActivityCount: codingActivity.length,
+    executionRuns: executionHistory.length,
+    recommendation: flaggedForReview
+      ? "Review required — integrity threshold exceeded."
+      : tier === 2
+        ? "Proceed with caution — multiple violations logged."
+        : violations.length > 0
+          ? "Minor integrity events logged — review audit trail."
+          : "Clean integrity record.",
   };
 }
 
@@ -337,6 +405,8 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
   const [enableCoding,   setEnableCoding]   = useState(true);
   const [secureMode,     setSecureMode]     = useState(true);
   const [violationLimit, setViolationLimit] = useState(SECURITY_LIMITS.maxViolations);
+  const [warningThresholds, setWarningThresholds] = useState([...SECURITY_LIMITS.warningThresholds]);
+  const [fullscreenReady, setFullscreenReady] = useState(false);
   const [err,            setErr]            = useState("");
 
   const toggleTopic = (t) =>
@@ -365,8 +435,9 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
       difficulty,
       maxTurns,
       enableCoding,
-      secureMode,
+      secureMode: true,
       violationLimit,
+      warningThresholds,
     });
   };
 
@@ -543,10 +614,10 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
           <label className="s-label">Assessment Controls</label>
           <div className="s-check-grid">
             <label className="s-check-row">
-              <input type="checkbox" checked={secureMode} onChange={e => setSecureMode(e.target.checked)} />
+              <input type="checkbox" checked={secureMode} disabled />
               <span>
-                Secure assessment mode
-                <small>Track tab switches, focus loss, copy/paste, right-click, fullscreen exits, and display risks.</small>
+                Secure interview mode (always on)
+                <small>Automatically tracks tab switches, focus loss, copy/paste, fullscreen exits, and display risks.</small>
               </span>
             </label>
             <label className="s-check-row">
@@ -557,23 +628,76 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
               </span>
             </label>
           </div>
-          <div className="s-threshold-row">
-            <span>Violation limit</span>
-            <input
-              className="s-input s-threshold-input"
-              type="number"
-              min="1"
-              max="20"
-              value={violationLimit}
-              onChange={e => setViolationLimit(Math.max(1, Number(e.target.value) || SECURITY_LIMITS.maxViolations))}
-            />
+          <div className="s-threshold-grid">
+            <div className="s-threshold-row">
+              <span>Warning 1 (first violation)</span>
+              <input
+                className="s-input s-threshold-input"
+                type="number" min="1" max="20"
+                value={warningThresholds[0]}
+                onChange={e => {
+                  const v = Math.max(1, Number(e.target.value) || 1);
+                  setWarningThresholds([v, Math.max(v + 1, warningThresholds[1]), Math.max(v + 2, warningThresholds[2])]);
+                }}
+              />
+            </div>
+            <div className="s-threshold-row">
+              <span>Warning 2 (multiple violations)</span>
+              <input
+                className="s-input s-threshold-input"
+                type="number" min="2" max="20"
+                value={warningThresholds[1]}
+                onChange={e => {
+                  const v = Math.max(warningThresholds[0] + 1, Number(e.target.value) || 3);
+                  setWarningThresholds([warningThresholds[0], v, Math.max(v + 1, warningThresholds[2])]);
+                }}
+              />
+            </div>
+            <div className="s-threshold-row">
+              <span>Warning 3 (flag for review)</span>
+              <input
+                className="s-input s-threshold-input"
+                type="number" min="3" max="20"
+                value={warningThresholds[2]}
+                onChange={e => {
+                  const v = Math.max(warningThresholds[1] + 1, Number(e.target.value) || 5);
+                  setWarningThresholds([warningThresholds[0], warningThresholds[1], v]);
+                  setViolationLimit(v);
+                }}
+              />
+            </div>
           </div>
         </div>
 
+        {secureMode && !fullscreenReady && (
+          <div className="s-fs-gate">
+            <p className="s-fs-title">Fullscreen required</p>
+            <p className="s-fs-desc">You must enter fullscreen before the interview can begin. This helps ensure a secure assessment environment.</p>
+            <button
+              type="button"
+              className="s-btn-ghost s-fs-btn"
+              onClick={async () => {
+                try {
+                  await document.documentElement.requestFullscreen();
+                  setFullscreenReady(true);
+                } catch {
+                  setErr("Could not enter fullscreen. Please allow fullscreen in your browser and try again.");
+                }
+              }}
+            >
+              Enter Fullscreen
+            </button>
+          </div>
+        )}
+
         {err && <p className="s-err">{err}</p>}
 
-        <button className="s-start-btn" onClick={handleStart}>
-          <span>▶</span> Start Full-Screen Interview
+        <button
+          className="s-start-btn"
+          onClick={handleStart}
+          disabled={secureMode && !fullscreenReady}
+        >
+          <span>▶</span> {fullscreenReady || !secureMode ? "Start Interview" : "Enter Fullscreen First"}
         </button>
 
         <p className="s-footer-note">
@@ -606,12 +730,16 @@ export default function LiveInterview({
   const [faceSnapshot, setFaceSnapshot] = useState(null);
   const [violations, setViolations] = useState([]);
   const [securityWarning, setSecurityWarning] = useState("");
+  const [warningTier, setWarningTier] = useState(0);
   const [interviewerAlert, setInterviewerAlert] = useState(false);
+  const [showEventLog, setShowEventLog] = useState(false);
+  const [needsFullscreen, setNeedsFullscreen] = useState(false);
   const [codingChallenge, setCodingChallenge] = useState(DEFAULT_CODING_CHALLENGE);
   const [codeLanguage, setCodeLanguage] = useState("javascript");
   const [codeText, setCodeText] = useState(CODING_LANGUAGES.javascript.template);
   const [customInput, setCustomInput] = useState("");
   const [codeResult, setCodeResult] = useState(null);
+  const [executionHistory, setExecutionHistory] = useState([]);
 
   const mediaRecRef  = useRef(null);
   const chunksRef    = useRef([]);
@@ -642,6 +770,14 @@ export default function LiveInterview({
     suspiciousEvents: [],
   });
   const codingReportsRef = useRef([]);
+  const codingActivityRef = useRef([]);
+  const executionHistoryRef = useRef([]);
+  const interviewStartedAtRef = useRef(null);
+  const windowSizeRef = useRef(null);
+  const lastTierRef = useRef(0);
+  const notifyAiRef = useRef(null);
+  const codeSaveTimerRef = useRef(null);
+  const CODE_DRAFT_KEY = "prepmate-coding-draft";
 
   useEffect(() => {
     mounted.current = true;
@@ -677,26 +813,60 @@ export default function LiveInterview({
     return () => clearInterval(faceTimer.current);
   }, [screen]);
 
-  function _logViolation(type, detail, severity = "medium") {
-    if (!configRef.current?.secureMode || phaseRef.current === "done") return;
+  function _logViolation(type, detail, severity = "medium", { skipTier = false, skipAiNotify = false } = {}) {
+    if (!configRef.current?.secureMode || phaseRef.current === "done") return null;
     const entry = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       type,
       detail,
       severity,
       timestamp: new Date().toISOString(),
+      label: VIOLATION_TYPE_LABELS[type] || type,
     };
     violationsRef.current = [...violationsRef.current, entry];
     setViolations(violationsRef.current);
-    setSecurityWarning(detail);
-    window.setTimeout(() => setSecurityWarning(prev => prev === detail ? "" : prev), 4500);
 
-    const limit = configRef.current?.violationLimit || SECURITY_LIMITS.maxViolations;
+    const thresholds = configRef.current?.warningThresholds || SECURITY_LIMITS.warningThresholds;
+    const tier = getWarningTier(violationsRef.current.length, thresholds);
+    const tierMessage = tier > 0 ? WARNING_TIER_MESSAGES[tier - 1] : detail;
+
+    if (!skipTier) {
+      setSecurityWarning(tierMessage);
+      setWarningTier(tier);
+    }
+
+    if (tier >= 2 && tier > lastTierRef.current && !skipAiNotify) {
+      lastTierRef.current = tier;
+      setInterviewerAlert(true);
+      setChatLog(prev => [...prev, {
+        role: "system",
+        content: `[Proctoring Alert — Tier ${tier}] ${tierMessage}`,
+        timestamp: entry.timestamp,
+      }]);
+      notifyAiRef.current?.(tier, tierMessage);
+    } else if (tier === 1 && violationsRef.current.length === thresholds[0]) {
+      setChatLog(prev => [...prev, {
+        role: "system",
+        content: `[Proctoring Notice] ${WARNING_TIER_MESSAGES[0]}`,
+        timestamp: entry.timestamp,
+      }]);
+    }
+
+    const limit = configRef.current?.violationLimit || thresholds[2] || SECURITY_LIMITS.maxViolations;
     if (violationsRef.current.length >= limit) {
       setInterviewerAlert(true);
-      setErrMsg("Security threshold exceeded. The interviewer has been notified in the report.");
+      setErrMsg("Security threshold exceeded. The interviewer has been notified in the integrity report.");
     }
+
+    return entry;
   }
+
+  notifyAiRef.current = async (tier, message) => {
+    if (phaseRef.current === "done" || !mounted.current) return;
+    if (tier >= 2) {
+      await _speak(message);
+    }
+  };
 
   useEffect(() => {
     if (screen !== "interview" || !config?.secureMode) return;
@@ -709,6 +879,23 @@ export default function LiveInterview({
     const onCut = event => preventAndLog(event, "cut", "Cut action blocked during secure assessment.");
     const onPaste = event => preventAndLog(event, "paste", "Paste action blocked during secure assessment.");
     const onContextMenu = event => preventAndLog(event, "right_click", "Right-click menu blocked during secure assessment.");
+    const onKeyDown = event => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === "c") {
+        event.preventDefault();
+        _logViolation("copy", "Ctrl+C copy shortcut blocked during secure assessment.", "medium");
+      } else if (key === "v") {
+        event.preventDefault();
+        _logViolation("paste", "Ctrl+V paste shortcut blocked during secure assessment.", "medium");
+      } else if (key === "x") {
+        event.preventDefault();
+        _logViolation("cut", "Ctrl+X cut shortcut blocked during secure assessment.", "medium");
+      } else if (key === "r" || key === "f5") {
+        event.preventDefault();
+        _logViolation("navigation_attempt", "Refresh shortcut blocked during secure assessment.", "high");
+      }
+    };
     const onVisibility = () => {
       if (document.hidden) _logViolation("tab_hidden", "Candidate left the interview tab or minimized the browser.", "high");
     };
@@ -716,6 +903,9 @@ export default function LiveInterview({
     const onFullscreen = () => {
       if (!document.fullscreenElement && phaseRef.current !== "done") {
         _logViolation("fullscreen_exit", "Candidate exited full-screen assessment mode.", "high");
+        setNeedsFullscreen(true);
+      } else {
+        setNeedsFullscreen(false);
       }
     };
     const onBeforeUnload = event => {
@@ -723,15 +913,39 @@ export default function LiveInterview({
       event.preventDefault();
       event.returnValue = "";
     };
+    const onResize = () => {
+      const base = windowSizeRef.current;
+      if (!base) return;
+      const widthDelta = Math.abs(window.innerWidth - base.width) / base.width;
+      const heightDelta = Math.abs(window.innerHeight - base.height) / base.height;
+      if (widthDelta > SECURITY_LIMITS.resizeRatioThreshold || heightDelta > SECURITY_LIMITS.resizeRatioThreshold) {
+        _logViolation("window_resize", "Browser window was resized excessively during the interview.", "medium");
+        windowSizeRef.current = { width: window.innerWidth, height: window.innerHeight };
+      }
+    };
 
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("blur", onBlur);
     document.addEventListener("fullscreenchange", onFullscreen);
     window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("resize", onResize);
     document.addEventListener("copy", onCopy);
     document.addEventListener("cut", onCut);
     document.addEventListener("paste", onPaste);
     document.addEventListener("contextmenu", onContextMenu);
+    document.addEventListener("keydown", onKeyDown, true);
+
+    const focusPoll = setInterval(() => {
+      if (phaseRef.current === "done" || document.hidden) return;
+      if (!document.hasFocus()) {
+        if (!focusPoll._lost) {
+          focusPoll._lost = true;
+          _logViolation("window_blur", "Application focus lost (polling detected).", "medium");
+        }
+      } else {
+        focusPoll._lost = false;
+      }
+    }, 3000);
 
     const displayInfo = window.screen;
     if (displayInfo?.isExtended) {
@@ -739,17 +953,20 @@ export default function LiveInterview({
     } else if (window.screen && (window.screen.availWidth > window.innerWidth * 1.8 || window.screen.availHeight > window.innerHeight * 1.8)) {
       _logViolation("display_risk", "Large available display area detected; multiple-monitor check is inconclusive.", "low");
     }
-    _logViolation("screen_share_limit", "Browser cannot reliably detect external screen-sharing apps; webcam and focus signals will be monitored.", "low");
+    _logViolation("screen_share_limit", "Browser cannot reliably detect external screen-sharing apps; webcam and focus signals will be monitored.", "low", { skipTier: true, skipAiNotify: true });
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("fullscreenchange", onFullscreen);
       window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("resize", onResize);
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("cut", onCut);
       document.removeEventListener("paste", onPaste);
       document.removeEventListener("contextmenu", onContextMenu);
+      document.removeEventListener("keydown", onKeyDown, true);
+      clearInterval(focusPoll);
     };
   }, [screen, config]);
 
@@ -892,13 +1109,27 @@ export default function LiveInterview({
   }
 
   function _finishWithReport(rpt) {
+    const endedAt = new Date().toISOString();
+    _logViolation("interview_end", "Interview session ended.", "low", { skipTier: true, skipAiNotify: true });
+
     const deliveryAnalysis = buildDeliveryAnalysis(faceStatsRef.current, answerMetricsRef.current);
+    const thresholds = configRef.current?.warningThresholds || SECURITY_LIMITS.warningThresholds;
     const securityAnalysis = buildSecurityAnalysis(
       violationsRef.current,
-      configRef.current?.violationLimit || SECURITY_LIMITS.maxViolations
+      configRef.current?.violationLimit || thresholds[2] || SECURITY_LIMITS.maxViolations
     );
     const proctoringAnalysis = buildProctoringAnalysis(proctoringRef.current);
     const codingAnalysis = buildCodingAnalysis(codingReportsRef.current);
+    const integrityReport = buildIntegrityReport({
+      violations: violationsRef.current,
+      proctoring: proctoringRef.current,
+      codingReports: codingReportsRef.current,
+      codingActivity: codingActivityRef.current,
+      executionHistory: executionHistoryRef.current,
+      startedAt: interviewStartedAtRef.current,
+      endedAt,
+      thresholds,
+    });
     const skillScores = {
       problem_solving: rpt.topicScores?.problem_solving ?? codingAnalysis.score,
       coding_skills: codingAnalysis.attempted ? codingAnalysis.score : (rpt.topicScores?.coding_skills ?? 0),
@@ -908,6 +1139,7 @@ export default function LiveInterview({
       behavioral_responses: rpt.topicScores?.behavioral_responses ?? rpt.topicScores?.communication ?? 0,
     };
     const hiringRecommendation =
+      integrityReport.flaggedForReview ? "Do not proceed — integrity review required" :
       rpt.overallScore >= 80 && securityAnalysis.highRisk === 0 ? "Strong hire" :
       rpt.overallScore >= 65 && securityAnalysis.highRisk <= 1 ? "Hire / continue process" :
       rpt.overallScore >= 50 ? "Borderline - needs review" :
@@ -922,6 +1154,7 @@ export default function LiveInterview({
       securityAnalysis,
       proctoringAnalysis,
       codingAnalysis,
+      integrityReport,
       transcript: chatLog,
     });
     setPhase("done");
@@ -1030,6 +1263,17 @@ export default function LiveInterview({
     return `${challenge.title}: ${challenge.prompt}`;
   }
 
+  function _securityContextMessages() {
+    const recent = violationsRef.current
+      .filter(v => !["interview_start", "interview_end", "screen_share_limit", "coding_run", "coding_submission"].includes(v.type))
+      .slice(-5);
+    if (!recent.length) return [];
+    return [{
+      role: "system",
+      content: `PROCTORING CONTEXT: ${recent.length} recent integrity event(s): ${recent.map(v => `[${v.type}] ${v.detail}`).join("; ")}. Acknowledge only if directly relevant.`,
+    }];
+  }
+
   // ── Main interview async loop ────────────────────────────────────────────────
   async function _runInterview(cfg) {
     let history = [];
@@ -1072,7 +1316,7 @@ export default function LiveInterview({
       let aiData;
       try {
         const res = await api.post("/interview/chat", {
-          messages:   history,
+          messages:   [..._securityContextMessages(), ...history],
           system:     "",
           topic:      topicStr,
           difficulty: cfg.difficulty,
@@ -1130,7 +1374,7 @@ export default function LiveInterview({
     const cfg2 = configRef.current;
     try {
       const res = await api.post("/interview/chat", {
-        messages:   history,
+        messages:   [..._securityContextMessages(), ...history],
         system:     "",
         topic:      cfg2.topics.join(", "),
         difficulty: cfg2.difficulty,
@@ -1175,20 +1419,35 @@ export default function LiveInterview({
     setFaceSnapshot(null);
     setViolations([]);
     setSecurityWarning("");
+    setWarningTier(0);
     setInterviewerAlert(false);
+    setShowEventLog(false);
+    setNeedsFullscreen(false);
+    setExecutionHistory([]);
     setCodeResult(null);
     faceStatsRef.current = createFaceStats();
     answerMetricsRef.current = [];
     violationsRef.current = [];
     proctoringRef.current = { samples: 0, faceVisible: 0, noFaceSamples: 0, multipleFaceSamples: 0, suspiciousEvents: [] };
     codingReportsRef.current = [];
+    codingActivityRef.current = [];
+    executionHistoryRef.current = [];
+    lastTierRef.current = 0;
+    interviewStartedAtRef.current = new Date().toISOString();
+    windowSizeRef.current = { width: window.innerWidth, height: window.innerHeight };
 
-    // Enter fullscreen
-    try {
-      await containerRef.current?.requestFullscreen();
-    } catch {
-      // Fullscreen can be blocked by browser settings; the interview still works.
+    // Enforce fullscreen before interview begins
+    if (cfg.secureMode) {
+      try {
+        if (!document.fullscreenElement) {
+          await containerRef.current?.requestFullscreen();
+        }
+      } catch {
+        setNeedsFullscreen(true);
+      }
     }
+
+    _logViolation("interview_start", "Secure interview mode activated.", "low", { skipTier: true, skipAiNotify: true });
 
     // Start timer
     timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
@@ -1206,7 +1465,47 @@ export default function LiveInterview({
     setCodeLanguage(lang);
     setCodeText(CODING_LANGUAGES[lang].template);
     setCodeResult(null);
+    _logCodingActivity("language_change", { language: lang });
   }
+
+  function _logCodingActivity(action, meta = {}) {
+    const entry = { action, timestamp: new Date().toISOString(), ...meta };
+    codingActivityRef.current = [...codingActivityRef.current, entry];
+  }
+
+  useEffect(() => {
+    if (phase !== "coding") return;
+    clearTimeout(codeSaveTimerRef.current);
+    codeSaveTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(CODE_DRAFT_KEY, JSON.stringify({
+          code: codeText,
+          language: codeLanguage,
+          challengeId: codingChallenge.id,
+          savedAt: new Date().toISOString(),
+        }));
+        _logCodingActivity("auto_save", { chars: codeText.length });
+      } catch {
+        // localStorage may be unavailable in private mode.
+      }
+    }, 800);
+    return () => clearTimeout(codeSaveTimerRef.current);
+  }, [codeText, codeLanguage, phase, codingChallenge.id]);
+
+  useEffect(() => {
+    if (phase !== "coding") return;
+    try {
+      const raw = localStorage.getItem(CODE_DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft.challengeId === codingChallenge.id && draft.code) {
+        setCodeText(draft.code);
+        if (draft.language && CODING_LANGUAGES[draft.language]) setCodeLanguage(draft.language);
+      }
+    } catch {
+      // Ignore corrupt drafts.
+    }
+  }, [phase, codingChallenge.id]);
 
   async function handleRunCode() {
     setErrMsg("");
@@ -1217,6 +1516,17 @@ export default function LiveInterview({
       customInputRaw: customInput,
     });
     if (!mounted.current) return null;
+    const runEntry = {
+      timestamp: new Date().toISOString(),
+      passed: result.passed,
+      total: result.total,
+      error: result.error || null,
+      language: codeLanguage,
+    };
+    executionHistoryRef.current = [...executionHistoryRef.current, runEntry];
+    setExecutionHistory(executionHistoryRef.current);
+    _logCodingActivity("run", runEntry);
+    _logViolation("coding_run", `Code executed: ${result.passed}/${result.total} tests passed.`, "low", { skipTier: true, skipAiNotify: true });
     setCodeResult(result);
     return result;
   }
@@ -1226,12 +1536,18 @@ export default function LiveInterview({
     setPhase("submitting");
     const result = await handleRunCode();
     if (!result) return;
+    const submittedAt = new Date().toISOString();
     codingReportsRef.current = [...codingReportsRef.current, {
       challengeTitle: codingChallenge.title,
       language: CODING_LANGUAGES[codeLanguage].label,
       code: codeText,
+      submittedAt,
+      executionHistory: [...executionHistoryRef.current],
       ...result,
     }];
+    _logCodingActivity("submit", { submittedAt, score: result.score, passed: result.passed, total: result.total });
+    _logViolation("coding_submission", `Coding challenge submitted at ${submittedAt}.`, "low", { skipTier: true, skipAiNotify: true });
+    try { localStorage.removeItem(CODE_DRAFT_KEY); } catch { /* ignore */ }
     const summary = [
       `Coding submission for ${codingChallenge.title} in ${CODING_LANGUAGES[codeLanguage].label}.`,
       `Correctness: ${result.correctness}/100 (${result.passed}/${result.total} tests passed).`,
@@ -1279,6 +1595,15 @@ export default function LiveInterview({
   }, []);
 
   // ── Exit fullscreen / interview ───────────────────────────────────────────────
+  async function handleReenterFullscreen() {
+    try {
+      await containerRef.current?.requestFullscreen();
+      setNeedsFullscreen(false);
+    } catch {
+      setErrMsg("Could not re-enter fullscreen. Please use your browser's fullscreen control.");
+    }
+  }
+
   const handleExit = useCallback(async () => {
     clearInterval(timerRef.current);
     _stopRec();
@@ -1344,12 +1669,68 @@ export default function LiveInterview({
             </div>
 
             <div className="ir-topbar-right">
+              {config?.secureMode && (
+                <button
+                  className={`ir-viol-badge${interviewerAlert ? " ir-viol-badge-alert" : ""}`}
+                  onClick={() => setShowEventLog(v => !v)}
+                  title="Interviewer proctoring dashboard"
+                >
+                  🛡 {violations.length} violation{violations.length !== 1 ? "s" : ""}
+                  {warningTier > 0 && <span className="ir-viol-tier">T{warningTier}</span>}
+                </button>
+              )}
+              {!isFS && config?.secureMode && (
+                <span className="ir-fs-warn">Not fullscreen</span>
+              )}
               <span className="ir-timer">⏱ {mm}:{ss}</span>
               <button className="ir-exit-btn" onClick={handleExit} title="Exit Interview">
                 ✕ Exit
               </button>
             </div>
           </header>
+
+          {securityWarning && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-rise">
+              <div className="bg-white dark:bg-gray-900 border-2 border-red-500 rounded-3xl shadow-2xl p-8 sm:p-10 max-w-lg w-full text-center m-4">
+                <div className="w-24 h-24 bg-red-100 dark:bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                  <span className="text-5xl">{warningTier >= 3 ? "🚩" : warningTier >= 2 ? "⚠️" : "👀"}</span>
+                </div>
+                <h3 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-3">
+                  {warningTier >= 3 ? "Flagged for Review" : warningTier >= 2 ? "Security Warning" : "Focus Reminder"}
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 text-lg mb-8 leading-relaxed">
+                  {securityWarning}
+                </p>
+                <button 
+                  onClick={() => setSecurityWarning("")} 
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 shadow-lg shadow-red-600/30 text-lg"
+                >
+                  I Understand, Resume Interview
+                </button>
+              </div>
+            </div>
+          )}
+
+          {needsFullscreen && config?.secureMode && (
+            <div className="ir-fs-overlay">
+              <div className="ir-fs-modal">
+                <h4>Fullscreen Required</h4>
+                <p>You exited fullscreen mode. Re-enter fullscreen to continue the secure interview.</p>
+                <button className="ir-btn ir-btn-submit" onClick={handleReenterFullscreen}>
+                  Re-enter Fullscreen
+                </button>
+              </div>
+            </div>
+          )}
+
+          {showEventLog && config?.secureMode && (
+            <ProctoringDashboard
+              violations={violations}
+              warningTier={warningTier}
+              thresholds={config?.warningThresholds || SECURITY_LIMITS.warningThresholds}
+              onClose={() => setShowEventLog(false)}
+            />
+          )}
 
           {/* Main area */}
           <main className="ir-main">
@@ -1428,6 +1809,67 @@ export default function LiveInterview({
                 </div>
               )}
 
+              {/* CODING CHALLENGE */}
+              {phase === "coding" && (
+                <div className="ir-coding-area">
+                  <div className="ir-q-mini">
+                    <span className="ir-q-mini-label">Coding Challenge</span>
+                    <p className="ir-q-mini-text">{codingChallenge.title}: {codingChallenge.prompt}</p>
+                    <small className="ir-coding-hint">{codingChallenge.inputHint}</small>
+                  </div>
+                  <div className="ir-coding-toolbar">
+                    <select
+                      className="ir-coding-select"
+                      value={codeLanguage}
+                      onChange={e => handleLanguageChange(e.target.value)}
+                    >
+                      {Object.entries(CODING_LANGUAGES).map(([key, val]) => (
+                        <option key={key} value={key}>{val.label}</option>
+                      ))}
+                    </select>
+                    <span className="ir-coding-autosave">Auto-save enabled</span>
+                  </div>
+                  <textarea
+                    className="ir-code-editor"
+                    value={codeText}
+                    onChange={e => setCodeText(e.target.value)}
+                    spellCheck={false}
+                  />
+                  <input
+                    className="ir-coding-input"
+                    value={customInput}
+                    onChange={e => setCustomInput(e.target.value)}
+                    placeholder='Custom test input (optional JSON)'
+                  />
+                  {codeResult && (
+                    <div className={`ir-code-result${codeResult.passed === codeResult.total ? " ir-code-pass" : ""}`}>
+                      <strong>{codeResult.passed}/{codeResult.total} tests passed</strong>
+                      {codeResult.error && <p className="ir-err">{codeResult.error}</p>}
+                      {codeResult.tests?.map(t => (
+                        <div key={t.name} className={`ir-test-row${t.passed ? " ir-test-pass" : " ir-test-fail"}`}>
+                          {t.passed ? "✓" : "✗"} {t.name}
+                        </div>
+                      ))}
+                      {executionHistory.length > 0 && (
+                        <div className="ir-exec-history">
+                          <small>Execution history ({executionHistory.length} run{executionHistory.length !== 1 ? "s" : ""})</small>
+                          {executionHistory.slice(-3).map((run, i) => (
+                            <div key={i} className="ir-exec-row">
+                              {new Date(run.timestamp).toLocaleTimeString()} — {run.passed}/{run.total} passed
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {errMsg && <p className="ir-err">{errMsg}</p>}
+                  <div className="ir-btn-row">
+                    <button className="ir-btn ir-btn-ghost" onClick={handleRunCode}>▶ Run Tests</button>
+                    <button className="ir-btn ir-btn-submit" onClick={handleSubmitCode}>✅ Submit Solution</button>
+                  </div>
+                </div>
+              )}
+
               {/* SUBMITTING */}
               {phase === "submitting" && (
                 <div className="ir-submitting">
@@ -1492,11 +1934,53 @@ export default function LiveInterview({
                     </div>
                   )}
 
+                  {report.integrityReport && (
+                    <IntegrityReportSection report={report.integrityReport} />
+                  )}
+
+                  {report.securityAnalysis && (
+                    <div className="ir-integrity-card">
+                      <p className="ir-delivery-kicker">Security Analysis</p>
+                      <p className="ir-delivery-summary">{report.securityAnalysis.summary}</p>
+                      <div className="ir-delivery-stats">
+                        <MiniMetric label="Total events" value={report.securityAnalysis.violationCount} />
+                        <MiniMetric label="High risk" value={report.securityAnalysis.highRisk} />
+                        <MiniMetric label="Interviewer notified" value={report.securityAnalysis.interviewerNotified ? "Yes" : "No"} />
+                      </div>
+                    </div>
+                  )}
+
+                  {report.proctoringAnalysis && (
+                    <div className="ir-integrity-card">
+                      <p className="ir-delivery-kicker">Webcam Proctoring</p>
+                      <p className="ir-delivery-summary">{report.proctoringAnalysis.summary}</p>
+                      {report.proctoringAnalysis.flags?.map((flag, i) => (
+                        <p key={i} className="ir-fb-item">• {flag}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {report.codingAnalysis?.attempted && (
+                    <div className="ir-integrity-card">
+                      <p className="ir-delivery-kicker">Coding Assessment</p>
+                      <p className="ir-delivery-summary">{report.codingAnalysis.summary}</p>
+                      {report.codingAnalysis.reports?.map((r, i) => (
+                        <div key={i} className="ir-coding-report-row">
+                          <strong>{r.challengeTitle}</strong>
+                          <span>{r.language} — {r.passed}/{r.total} tests — Score {r.score}</span>
+                          {r.submittedAt && <small>Submitted {new Date(r.submittedAt).toLocaleString()}</small>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="ir-log">
                     <p className="ir-log-title">💬 Interview Transcript</p>
                     {chatLog.map((m, i) => (
                       <div key={i} className={`ir-msg ir-msg-${m.role}`}>
-                        <span className="ir-msg-who">{m.role === "assistant" ? "🤖 Alex" : "👤 You"}</span>
+                        <span className="ir-msg-who">
+                          {m.role === "assistant" ? "🤖 Alex" : m.role === "system" ? "🛡 Proctoring" : "👤 You"}
+                        </span>
                         <p className="ir-msg-text">{m.content}</p>
                       </div>
                     ))}
@@ -1624,6 +2108,81 @@ function MiniMetric({ label, value }) {
     <div className="ir-mini-metric">
       <strong>{value}</strong>
       <span>{label}</span>
+    </div>
+  );
+}
+
+function ProctoringDashboard({ violations, warningTier, thresholds, onClose }) {
+  const auditViolations = violations.filter(v => !["interview_start", "interview_end", "screen_share_limit"].includes(v.type));
+  return (
+    <aside className="ir-proctor-panel">
+      <div className="ir-proctor-head">
+        <div>
+          <strong>Interviewer Dashboard</strong>
+          <p>Live proctoring & violation count</p>
+        </div>
+        <button className="ir-proctor-close" onClick={onClose}>✕</button>
+      </div>
+      <div className="ir-proctor-stats">
+        <div className="ir-proctor-stat">
+          <strong>{auditViolations.length}</strong>
+          <span>Violations</span>
+        </div>
+        <div className="ir-proctor-stat">
+          <strong>T{warningTier || 0}</strong>
+          <span>Warning tier</span>
+        </div>
+        <div className="ir-proctor-stat">
+          <strong>{thresholds[2]}</strong>
+          <span>Review threshold</span>
+        </div>
+      </div>
+      <div className="ir-proctor-thresholds">
+        <span>T1 @ {thresholds[0]}: {WARNING_TIER_MESSAGES[0]}</span>
+        <span>T2 @ {thresholds[1]}: {WARNING_TIER_MESSAGES[1]}</span>
+        <span>T3 @ {thresholds[2]}: {WARNING_TIER_MESSAGES[2]}</span>
+      </div>
+      <div className="ir-proctor-log">
+        <p className="ir-proctor-log-title">Event Log</p>
+        {violations.length === 0 && <p className="ir-dim">No events yet.</p>}
+        {[...violations].reverse().map(v => (
+          <div key={v.id} className={`ir-proctor-event ir-sev-${v.severity}`}>
+            <span className="ir-proctor-time">{new Date(v.timestamp).toLocaleTimeString()}</span>
+            <strong>{v.label || v.type}</strong>
+            <p>{v.detail}</p>
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
+function IntegrityReportSection({ report }) {
+  return (
+    <div className="ir-integrity-card ir-integrity-main">
+      <p className="ir-delivery-kicker">Integrity Report</p>
+      <p className="ir-delivery-summary">{report.recommendation}</p>
+      <div className="ir-delivery-stats">
+        <MiniMetric label="Total events" value={report.totalEvents} />
+        <MiniMetric label="Warning tier" value={`T${report.warningTier}`} />
+        <MiniMetric label="Flagged" value={report.flaggedForReview ? "Yes" : "No"} />
+        <MiniMetric label="Duration" value={`${Math.floor(report.durationSec / 60)}m ${report.durationSec % 60}s`} />
+      </div>
+      {report.warningMessage && (
+        <div className={`ir-sec-banner ir-sec-tier-${report.warningTier}`}>
+          <p>{report.warningMessage}</p>
+        </div>
+      )}
+      <div className="ir-proctor-log ir-integrity-log">
+        <p className="ir-proctor-log-title">Complete Audit Trail</p>
+        {report.events.map(v => (
+          <div key={v.id} className={`ir-proctor-event ir-sev-${v.severity}`}>
+            <span className="ir-proctor-time">{new Date(v.timestamp).toLocaleString()}</span>
+            <strong>{v.label || v.type}</strong>
+            <p>{v.detail}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1761,6 +2320,30 @@ const CSS = `
 .s-start-btn:hover { box-shadow:0 0 48px rgba(99,102,241,.55); transform:translateY(-1px); }
 .s-footer-note { text-align:center; color:#475569; font-size:12px; margin:14px 0 0; }
 
+.s-check-grid { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+.s-check-row {
+  display:flex; align-items:flex-start; gap:10px; cursor:pointer;
+  padding:10px 12px; border-radius:10px; background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.08);
+}
+.s-check-row input { margin-top:3px; accent-color:#3b82f6; }
+.s-check-row span { display:flex; flex-direction:column; gap:3px; font-size:13px; color:#cbd5e1; }
+.s-check-row small { font-size:11px; color:#64748b; font-weight:400; line-height:1.4; }
+.s-threshold-grid { display:flex; flex-direction:column; gap:8px; }
+.s-threshold-row {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  font-size:12px; color:#94a3b8;
+}
+.s-threshold-input { width:72px; text-align:center; padding:6px 8px; }
+.s-fs-gate {
+  margin:16px 0; padding:16px; border-radius:12px;
+  background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.25);
+}
+.s-fs-title { font-weight:700; color:#fbbf24; margin:0 0 6px; font-size:14px; }
+.s-fs-desc { font-size:12px; color:#94a3b8; margin:0 0 12px; line-height:1.5; }
+.s-fs-btn { width:100%; justify-content:center; }
+.s-start-btn:disabled { opacity:.45; cursor:not-allowed; transform:none; box-shadow:none; }
+
 /* ══════════════════════════════════════════════════════════════════════════
    INTERVIEW ROOM
 ══════════════════════════════════════════════════════════════════════════ */
@@ -1805,6 +2388,127 @@ const CSS = `
 }
 .ir-exit-btn:hover { background:rgba(239,68,68,.2); color:#fca5a5; }
 
+.ir-viol-badge {
+  padding:5px 12px; border-radius:99px; font-size:11px; font-weight:700;
+  border:1px solid rgba(245,158,11,.35); background:rgba(245,158,11,.12);
+  color:#fbbf24; cursor:pointer; display:flex; align-items:center; gap:6px;
+}
+.ir-viol-badge-alert {
+  border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.15); color:#f87171;
+  animation:ir-viol-pulse 1.5s ease-in-out infinite;
+}
+.ir-viol-tier {
+  background:rgba(0,0,0,.3); padding:1px 6px; border-radius:99px; font-size:10px;
+}
+@keyframes ir-viol-pulse { 0%,100%{opacity:1} 50%{opacity:.65} }
+.ir-fs-warn { font-size:11px; color:#f87171; font-weight:600; }
+
+.ir-sec-banner {
+  display:flex; align-items:flex-start; gap:12px; padding:12px 24px;
+  border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;
+}
+.ir-sec-tier-1 { background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.25); }
+.ir-sec-tier-2 { background:rgba(245,158,11,.15); border-color:rgba(245,158,11,.3); }
+.ir-sec-tier-3 { background:rgba(239,68,68,.18); border-color:rgba(239,68,68,.35); }
+.ir-sec-banner strong { display:block; font-size:13px; margin-bottom:2px; }
+.ir-sec-banner p { margin:0; font-size:12px; color:#cbd5e1; line-height:1.45; }
+.ir-sec-icon { font-size:18px; flex-shrink:0; margin-top:2px; }
+
+.ir-fs-overlay {
+  position:fixed; inset:0; z-index:10000; background:rgba(2,8,23,.85);
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.ir-fs-modal {
+  max-width:420px; width:100%; padding:28px; border-radius:16px;
+  background:#0f172a; border:1px solid rgba(239,68,68,.35); text-align:center;
+}
+.ir-fs-modal h4 { margin:0 0 10px; color:#f87171; }
+.ir-fs-modal p { font-size:13px; color:#94a3b8; margin:0 0 18px; line-height:1.55; }
+
+.ir-proctor-panel {
+  position:fixed; top:60px; right:16px; width:340px; max-height:calc(100vh - 80px);
+  z-index:9998; overflow:hidden; display:flex; flex-direction:column;
+  background:rgba(15,23,42,.97); border:1px solid rgba(255,255,255,.12);
+  border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.5);
+}
+.ir-proctor-head {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.08);
+}
+.ir-proctor-head strong { font-size:14px; display:block; }
+.ir-proctor-head p { margin:2px 0 0; font-size:11px; color:#64748b; }
+.ir-proctor-close {
+  background:none; border:none; color:#94a3b8; cursor:pointer; font-size:16px; padding:4px;
+}
+.ir-proctor-stats {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:12px 16px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.ir-proctor-stat {
+  text-align:center; padding:8px; border-radius:8px; background:rgba(255,255,255,.04);
+}
+.ir-proctor-stat strong { display:block; font-size:18px; color:#60a5fa; }
+.ir-proctor-stat span { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.ir-proctor-thresholds {
+  display:flex; flex-direction:column; gap:4px; padding:10px 16px;
+  font-size:10px; color:#64748b; border-bottom:1px solid rgba(255,255,255,.06);
+}
+.ir-proctor-log { flex:1; overflow-y:auto; padding:12px 16px; }
+.ir-proctor-log-title { font-size:12px; font-weight:700; color:#94a3b8; margin:0 0 10px; }
+.ir-proctor-event {
+  padding:8px 10px; margin-bottom:6px; border-radius:8px; font-size:11px;
+  background:rgba(255,255,255,.03); border-left:3px solid rgba(148,163,184,.4);
+}
+.ir-proctor-event.ir-sev-high { border-left-color:#ef4444; }
+.ir-proctor-event.ir-sev-medium { border-left-color:#f59e0b; }
+.ir-proctor-event.ir-sev-low { border-left-color:#64748b; }
+.ir-proctor-event strong { display:block; color:#e2e8f0; margin-bottom:2px; }
+.ir-proctor-event p { margin:0; color:#94a3b8; line-height:1.4; }
+.ir-proctor-time { font-size:10px; color:#475569; display:block; margin-bottom:2px; }
+
+.ir-integrity-card {
+  margin:16px 0; padding:16px; border-radius:12px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+}
+.ir-integrity-main { border-color:rgba(99,102,241,.25); }
+.ir-integrity-log { max-height:280px; }
+
+.ir-coding-area { display:flex; flex-direction:column; gap:12px; height:100%; }
+.ir-coding-hint { color:#64748b; font-size:11px; display:block; margin-top:4px; }
+.ir-coding-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.ir-coding-select {
+  padding:8px 12px; border-radius:8px; background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12); color:#e2e8f0; font-size:13px;
+}
+.ir-coding-autosave { font-size:11px; color:#22c55e; }
+.ir-code-editor {
+  flex:1; min-height:220px; padding:14px; border-radius:10px;
+  background:#0d1117; border:1px solid rgba(255,255,255,.12); color:#e2e8f0;
+  font-family:'Consolas','Monaco',monospace; font-size:13px; line-height:1.55;
+  resize:vertical; outline:none;
+}
+.ir-code-editor:focus { border-color:rgba(59,130,246,.45); }
+.ir-coding-input {
+  padding:10px 12px; border-radius:8px; background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.1); color:#e2e8f0; font-size:12px;
+  font-family:monospace;
+}
+.ir-code-result {
+  padding:12px; border-radius:10px; background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.1); font-size:12px;
+}
+.ir-code-pass { border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.08); }
+.ir-test-row { padding:3px 0; color:#94a3b8; }
+.ir-test-pass { color:#22c55e; }
+.ir-test-fail { color:#f87171; }
+.ir-exec-history { margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,.08); }
+.ir-exec-row { font-size:11px; color:#64748b; padding:2px 0; }
+.ir-coding-report-row {
+  padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex; flex-direction:column; gap:2px; font-size:12px;
+}
+.ir-coding-report-row small { color:#64748b; }
+
 /* Main split */
 .ir-main {
   display:flex; flex:1; overflow:hidden;
@@ -1813,14 +2517,15 @@ const CSS = `
 
 /* ─ Avatar / Video column — HALF SCREEN LEFT */
 .ir-avatar-col {
-  width:50%;
+  width:46%;
   flex-shrink:0;
   display:flex;
   flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  padding:20px 24px;
-  gap:12px;
+  align-items:stretch;
+  justify-content:flex-start;
+  padding:16px 20px;
+  gap:14px;
+  overflow-y:auto;
   border-right:1px solid rgba(255,255,255,.07);
   background:rgba(2,5,16,.9);
 }
@@ -1839,7 +2544,7 @@ const CSS = `
 /* Video card — full height portrait, fills the left half */
 .ir-video-card {
   width:100%;
-  max-width:480px;
+  max-width:100%;
   border-radius:20px;
   overflow:hidden;
   border:2px solid rgba(255,255,255,.1);
@@ -1869,7 +2574,7 @@ const CSS = `
 .ir-face-wrap {
   position:relative;
   width:100%;
-  padding-bottom:125%; /* 4:5 portrait ratio */
+  padding-bottom:110%; /* 4:5 portrait ratio */
   overflow:hidden;
   background:#0d1117;
 }
@@ -2101,14 +2806,16 @@ const CSS = `
 
 /* ─ Content panel — right half */
 .ir-camera-card {
-  width:100%; max-width:480px;
+  width:100%; max-width:100%;
   border:1px solid rgba(255,255,255,.1);
   border-radius:14px; overflow:hidden;
   background:rgba(15,23,42,.9);
+  flex:1;
 }
 .ir-camera-frame {
-  position:relative; width:100%; aspect-ratio:16/9;
+  position:relative; width:100%; aspect-ratio:4/3;
   background:#050a14; overflow:hidden;
+  min-height:200px;
 }
 .ir-camera-video {
   width:100%; height:100%; object-fit:cover;
@@ -2164,18 +2871,58 @@ const CSS = `
 .ir-dim { color:#64748b; font-size:14px; margin:0; }
 
 /* Question cards */
+/* Question cards */
 .ir-q-card {
-  background:rgba(59,130,246,.07); border:1px solid rgba(59,130,246,.25);
-  border-left:4px solid #3b82f6; border-radius:14px; padding:24px 26px;
+  background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(99,102,241,.05));
+  border:1px solid rgba(59,130,246,.3);
+  border-left:4px solid #3b82f6;
+  border-radius:16px; padding:28px 30px;
   max-width:680px;
+  box-shadow:0 4px 24px rgba(59,130,246,.1);
+  position:relative; overflow:hidden;
+}
+.ir-q-card::before {
+  content:''; position:absolute; top:-40px; right:-40px;
+  width:120px; height:120px; border-radius:50%;
+  background:rgba(99,102,241,.06); pointer-events:none;
 }
 .ir-q-card-speaking {
-  background:rgba(167,139,250,.07); border-color:rgba(167,139,250,.3);
+  background:linear-gradient(135deg,rgba(167,139,250,.1),rgba(99,102,241,.06));
+  border-color:rgba(167,139,250,.4);
   border-left-color:#6366f1;
+  box-shadow:0 4px 32px rgba(99,102,241,.15);
 }
-.ir-q-label { font-size:11px; font-weight:700; text-transform:uppercase;
-              letter-spacing:.06em; color:#60a5fa; display:block; margin-bottom:12px; }
-.ir-q-text  { font-size:18px; font-weight:500; line-height:1.65; margin:0; color:#e2e8f0; }
+.ir-q-label {
+  font-size:10px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.1em; color:#818cf8; display:flex;
+  align-items:center; gap:6px; margin-bottom:14px;
+}
+.ir-q-label::before {
+  content:''; display:inline-block; width:6px; height:6px;
+  border-radius:50%; background:#6366f1;
+  box-shadow:0 0 8px rgba(99,102,241,.8);
+  animation:ir-blink 1.4s ease-in-out infinite;
+}
+.ir-q-text {
+  font-size:19px; font-weight:500; line-height:1.7;
+  margin:0; color:#f1f5f9;
+  text-shadow:0 1px 2px rgba(0,0,0,.3);
+}
+
+/* Mini question reminder (in recording phase) */
+.ir-q-mini {
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.1);
+  border-left:3px solid #6366f1;
+  border-radius:12px; padding:14px 18px;
+}
+.ir-q-mini-label {
+  font-size:10px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.08em; color:#6366f1; display:block; margin-bottom:6px;
+}
+.ir-q-mini-text {
+  font-size:15px; color:#cbd5e1; margin:0; line-height:1.55; font-weight:400;
+}
 
 /* Answer area */
 .ir-answer-area { display:flex; flex-direction:column; gap:14px; max-width:680px; }
@@ -2294,6 +3041,7 @@ const CSS = `
 .ir-msg       { border-radius:8px; padding:10px 12px; margin-bottom:8px; }
 .ir-msg-assistant { background:rgba(59,130,246,.07); border-left:3px solid #3b82f6; }
 .ir-msg-user      { background:rgba(255,255,255,.04); border-left:3px solid #334155; }
+.ir-msg-system    { background:rgba(245,158,11,.08); border-left:3px solid #f59e0b; }
 .ir-msg-who  { font-size:10px; font-weight:700; text-transform:uppercase;
                letter-spacing:.05em; color:#64748b; display:block; margin-bottom:4px; }
 .ir-msg-text { font-size:13px; color:#cbd5e1; margin:0; line-height:1.55; }

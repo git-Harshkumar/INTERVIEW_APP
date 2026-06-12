@@ -4,7 +4,9 @@ import api from './api';
 import Auth from './Auth';
 import WrittenPractice from './interview';
 import LiveInterview from './LiveInterview';
-import { PenLine, Video, History, Settings, Bell, BookOpen } from 'lucide-react';
+import Profile from './Profile';
+import SettingsTab from './Settings';
+import { PenLine, Video, History, Settings, Bell, BookOpen, User, Sun, Moon } from 'lucide-react';
 
 // ─── Counting animation ───────────────────────────────────────────────────────
 const CountingNumber = ({ end, duration = 2000, suffix = "", decimals = 0 }) => {
@@ -40,7 +42,7 @@ const CountingNumber = ({ end, duration = 2000, suffix = "", decimals = 0 }) => 
 };
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
+const Dashboard = ({ user, initialTopic, onLogout, onHome, isDarkMode, toggleTheme }) => {
   const [activeTab, setActiveTab] = useState('practice');
   const [liveTopic, setLiveTopic] = useState(initialTopic || '');
   const [liveDifficulty, setLiveDifficulty] = useState('medium');
@@ -101,6 +103,7 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
       case 'practice': return 'Written Practice';
       case 'live': return 'Live Interview';
       case 'history': return 'Answer History';
+      case 'profile': return 'Profile';
       case 'settings': return 'Settings';
       default: return 'Dashboard';
     }
@@ -110,16 +113,16 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
   const userName = user?.name || 'Utkarsh Kumar';
 
   return (
-    <div className="flex h-screen bg-[#0a0f1e] text-white font-sans overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-[#0a0f1e] text-gray-900 dark:text-white font-sans overflow-hidden transition-colors duration-300">
 
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <aside className="w-[240px] bg-[#0d1420] border-r border-[#1f2937] flex flex-col justify-between shrink-0 hidden md:flex">
+      <aside className="w-[240px] bg-white dark:bg-[#0d1420] border-r border-gray-200 dark:border-[#1f2937] flex flex-col justify-between shrink-0 hidden md:flex transition-colors duration-300">
         <div>
           {/* Logo */}
-          <div className="h-[60px] flex items-center px-6 border-b border-[#1f2937]">
+          <div className="h-[60px] flex items-center px-6 border-b border-gray-200 dark:border-[#1f2937]">
             <button onClick={onHome} className="flex items-center gap-2 focus:outline-none">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" /></svg>
-              <span className="font-bold text-white tracking-wide text-lg">PrepMate AI</span>
+              <svg width="22" height="22" viewBox="0 0 24 24" className="fill-indigo-600 dark:fill-white"><path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" /></svg>
+              <span className="font-bold text-gray-900 dark:text-white tracking-wide text-lg">PrepMate AI</span>
             </button>
           </div>
 
@@ -166,21 +169,24 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
 
         {/* Navbar */}
-        <header className="h-[60px] flex items-center justify-between px-6 bg-[#0d1420] border-b border-[#1f2937] shrink-0">
+        <header className="h-[60px] flex items-center justify-between px-6 bg-white dark:bg-[#0d1420] border-b border-gray-200 dark:border-[#1f2937] shrink-0 transition-colors duration-300">
           <div className="flex items-center gap-3">
-            <button className="md:hidden text-gray-400 hover:text-white">
+            <button className="md:hidden text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-gray-500">Pages</span>
-              <span className="text-gray-600">/</span>
-              <span className="text-white font-medium">{getPageTitle()}</span>
+              <span className="text-gray-400 dark:text-gray-600">/</span>
+              <span className="text-gray-900 dark:text-white font-medium">{getPageTitle()}</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button className="text-gray-400 hover:text-white relative">
+            <button onClick={toggleTheme} className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-white transition-colors">
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <button className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-white relative">
               <Bell size={20} />
               <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full" />
             </button>
@@ -194,15 +200,15 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
               {showDropdown && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
-                  <div className="absolute right-0 mt-2 w-48 bg-[#111827] border border-[#1f2937] rounded-lg shadow-xl py-1 z-50">
-                    <div className="px-4 py-2 border-b border-[#1f2937]">
-                      <p className="text-sm font-medium text-white">{userName}</p>
-                      <p className="text-xs text-gray-400">{user?.email || ''}</p>
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#111827] border border-gray-200 dark:border-[#1f2937] rounded-lg shadow-xl py-1 z-50">
+                    <div className="px-4 py-2 border-b border-gray-200 dark:border-[#1f2937]">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{userName}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email || ''}</p>
                     </div>
-                    <button className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/5">Profile</button>
-                    <button className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/5" onClick={() => { setShowDropdown(false); handleTabChange('settings'); }}>Settings</button>
-                    <div className="border-t border-[#1f2937] my-1" />
-                    <button onClick={onLogout} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5">Logout</button>
+                    <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5" onClick={() => { setShowDropdown(false); handleTabChange('profile'); }}>Profile</button>
+                    <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5" onClick={() => { setShowDropdown(false); handleTabChange('settings'); }}>Settings</button>
+                    <div className="border-t border-gray-200 dark:border-[#1f2937] my-1" />
+                    <button onClick={onLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-white/5">Logout</button>
                   </div>
                 </>
               )}
@@ -225,8 +231,8 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
                   { label: 'Avg Score',            value: '78%',     color: '#10b981' },
                   { label: 'Current Streak',       value: '🔥 7 days', color: '#f59e0b' },
                 ].map(({ label, value, color }) => (
-                  <div key={label} className="bg-[#111827] border border-[#1f2937] rounded-xl p-5 flex flex-col gap-1">
-                    <span className="text-gray-400 text-xs font-medium">{label}</span>
+                  <div key={label} className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-[#1f2937] rounded-xl p-5 flex flex-col gap-1">
+                    <span className="text-gray-500 dark:text-gray-400 text-xs font-medium">{label}</span>
                     <span className="text-2xl font-bold" style={{ color }}>{value}</span>
                   </div>
                 ))}
@@ -234,15 +240,15 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
 
               {/* If practice has started, show Interview component; else show config */}
               {practiceStarted ? (
-                <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-6">
+                <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-[#1f2937] rounded-xl p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div>
-                      <h2 className="text-lg font-bold text-white">Practice Session</h2>
-                      <p className="text-sm text-gray-400">Topic: <span className="text-blue-400 font-medium">{practiceTopic}</span> · Difficulty: <span className="text-blue-400 font-medium capitalize">{practiceDifficulty}</span></p>
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Practice Session</h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Topic: <span className="text-blue-600 dark:text-blue-400 font-medium">{practiceTopic}</span> · Difficulty: <span className="text-blue-600 dark:text-blue-400 font-medium capitalize">{practiceDifficulty}</span></p>
                     </div>
                     <button
                       onClick={() => setPracticeStarted(false)}
-                      className="bg-[#1f2937] hover:bg-[#374151] text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors"
+                      className="bg-gray-100 dark:bg-[#1f2937] hover:bg-gray-200 dark:hover:bg-[#374151] text-gray-700 dark:text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors"
                     >
                       ← Back to Config
                     </button>
@@ -252,20 +258,20 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
               ) : (
                 <>
                   {/* Practice config card */}
-                  <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-6 md:p-8">
+                  <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-[#1f2937] rounded-xl p-6 md:p-8">
                     <div className="mb-6">
-                      <h2 className="text-xl font-bold text-white mb-1">AI Interview Practice</h2>
-                      <p className="text-sm text-gray-400">Generate AI-powered questions on any topic and get instant feedback.</p>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">AI Interview Practice</h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Generate AI-powered questions on any topic and get instant feedback.</p>
                     </div>
 
                     <div className="mb-6">
-                      <label className="block text-sm font-medium text-gray-400 mb-2">Topic</label>
+                      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Topic</label>
                       <input
                         value={liveTopic}
                         onChange={(e) => setLiveTopic(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleGenerateQuestions()}
                         placeholder="Enter a topic (e.g., React Hooks, System Design, Python)"
-                        className="w-full bg-[#0a0f1e] border border-[#1f2937] rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                        className="w-full bg-gray-50 dark:bg-[#0a0f1e] border border-gray-200 dark:border-[#1f2937] rounded-lg px-4 py-3 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                       />
                       <div className="flex flex-wrap gap-2 mt-3">
                         {popularTopics.map((t) => (
@@ -275,7 +281,7 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
                             className={`px-3 py-1 rounded-full text-sm border transition-all ${
                               liveTopic === t
                                 ? 'bg-blue-600 text-white border-blue-600'
-                                : 'border-[#1f2937] text-gray-300 hover:border-gray-400 hover:text-white'
+                                : 'border-gray-300 dark:border-[#1f2937] text-gray-700 dark:text-gray-300 hover:border-gray-500 dark:hover:border-gray-400 hover:text-gray-900 dark:hover:text-white bg-white dark:bg-transparent'
                             }`}
                           >
                             {t}
@@ -285,18 +291,18 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
                     </div>
 
                     <div className="mb-8">
-                      <label className="block text-sm font-medium text-gray-400 mb-3">Difficulty</label>
+                      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Difficulty</label>
                       <div className="flex gap-3">
                         {[
-                          { val: 'easy',   label: 'Easy',   active: 'bg-emerald-600 text-white' },
-                          { val: 'medium', label: 'Medium', active: 'bg-blue-600 text-white' },
-                          { val: 'hard',   label: 'Hard',   active: 'bg-red-600 text-white' },
+                          { val: 'easy',   label: 'Easy',   active: 'bg-emerald-600 text-white border-transparent' },
+                          { val: 'medium', label: 'Medium', active: 'bg-blue-600 text-white border-transparent' },
+                          { val: 'hard',   label: 'Hard',   active: 'bg-red-600 text-white border-transparent' },
                         ].map(({ val, label, active }) => (
                           <button
                             key={val}
                             onClick={() => setLiveDifficulty(val)}
-                            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-                              liveDifficulty === val ? active : 'bg-[#1f2937] text-gray-300 hover:bg-[#374151]'
+                            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all border ${
+                              liveDifficulty === val ? active : 'bg-gray-100 dark:bg-[#1f2937] text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#374151] border-transparent dark:border-[#1f2937]'
                             }`}
                           >
                             {label}
@@ -319,24 +325,24 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
 
                   {/* Recent Practice */}
                   <div>
-                    <h3 className="text-lg font-semibold text-white mb-4">Recent Practice</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Practice</h3>
                     <div className="flex flex-col gap-3">
                       {[
-                        { q: 'Explain the virtual DOM and how React reconciles it.', t: 'React', d: 'Medium', dc: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-                        { q: 'Design a URL shortener like bit.ly', t: 'System Design', d: 'Hard', dc: 'bg-red-500/20 text-red-400 border-red-500/30' },
-                        { q: 'What is the event loop in JavaScript?', t: 'JavaScript', d: 'Easy', dc: 'bg-green-500/20 text-green-400 border-green-500/30' },
+                        { q: 'Explain the virtual DOM and how React reconciles it.', t: 'React', d: 'Medium', dc: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30' },
+                        { q: 'Design a URL shortener like bit.ly', t: 'System Design', d: 'Hard', dc: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/30' },
+                        { q: 'What is the event loop in JavaScript?', t: 'JavaScript', d: 'Easy', dc: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-500/30' },
                       ].map((item, i) => (
-                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#111827] border border-[#1f2937] rounded-xl p-4">
+                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#111827] border border-gray-200 dark:border-[#1f2937] rounded-xl p-4 shadow-sm dark:shadow-none">
                           <div className="flex-1">
-                            <p className="text-gray-200 text-sm font-medium mb-2">{item.q}</p>
+                            <p className="text-gray-800 dark:text-gray-200 text-sm font-medium mb-2">{item.q}</p>
                             <div className="flex gap-2">
-                              <span className="text-xs border border-[#1f2937] text-gray-400 px-2 py-0.5 rounded-full">{item.t}</span>
+                              <span className="text-xs border border-gray-200 dark:border-[#1f2937] text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">{item.t}</span>
                               <span className={`text-xs border px-2 py-0.5 rounded-full ${item.dc}`}>{item.d}</span>
                             </div>
                           </div>
                           <button
                             onClick={() => { setLiveTopic(item.t); setPracticeStarted(false); }}
-                            className="shrink-0 bg-[#1f2937] hover:bg-[#374151] text-white text-sm px-4 py-2 rounded-lg transition-colors"
+                            className="shrink-0 bg-gray-100 dark:bg-[#1f2937] hover:bg-gray-200 dark:hover:bg-[#374151] text-gray-700 dark:text-white text-sm px-4 py-2 rounded-lg transition-colors border border-gray-200 dark:border-transparent"
                           >
                             Practice Again
                           </button>
@@ -521,41 +527,15 @@ const Dashboard = ({ user, initialTopic, onLogout, onHome }) => {
             </div>
           )}
 
-          {/* ══ SETTINGS ════════════════════════════════════════════════════════ */}
-          {activeTab === 'settings' && (
-            <div className="max-w-2xl mx-auto">
-              <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-6 md:p-8">
-                <h2 className="text-xl font-bold text-white mb-1">Settings</h2>
-                <p className="text-sm text-gray-400 mb-8">Manage your account preferences.</p>
-                <div className="space-y-1">
-                  {[
-                    { label: 'Email Notifications', desc: 'Receive weekly progress reports via email' },
-                    { label: 'Dark Mode', desc: 'Optimized dark theme for focused sessions' },
-                    { label: 'Sound Effects', desc: 'Play sounds during interview transitions' },
-                  ].map(({ label, desc }, i) => (
-                    <div key={label} className={`flex items-center justify-between py-4 ${i < 2 ? 'border-b border-[#1f2937]' : ''}`}>
-                      <div>
-                        <p className="text-sm font-medium text-white">{label}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
-                      </div>
-                      <div className="w-11 h-6 bg-blue-600 rounded-full relative cursor-pointer shrink-0">
-                        <div className="w-4 h-4 bg-white rounded-full absolute right-1 top-1 shadow-sm" />
-                      </div>
-                    </div>
-                  ))}
-                  <div className="pt-6">
-                    <button
-                      onClick={onLogout}
-                      className="w-full sm:w-auto bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-600/20 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Sign out of account
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* ══ PROFILE ════════════════════════════════════════════════════════ */}
+          {activeTab === 'profile' && (
+            <Profile user={user} />
           )}
 
+          {/* ══ SETTINGS ════════════════════════════════════════════════════════ */}
+          {activeTab === 'settings' && (
+            <SettingsTab user={user} onLogout={onLogout} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+          )}
         </main>
       </div>
     </div>
@@ -567,6 +547,17 @@ export default function App() {
   const [view, setView] = useState(() => localStorage.getItem('token') ? 'dashboard' : 'landing');
   const [user, setUser] = useState(null);
   const [starterTopic, setStarterTopic] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   const loadUser = async () => {
     if (!localStorage.getItem('token')) return;
@@ -612,7 +603,7 @@ export default function App() {
   }
 
   if (view === 'dashboard') {
-    return <Dashboard user={user} initialTopic={starterTopic} onLogout={handleLogout} onHome={() => setView('landing')} />;
+    return <Dashboard user={user} initialTopic={starterTopic} onLogout={handleLogout} onHome={() => setView('landing')} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />;
   }
 
   // ── Landing page ────────────────────────────────────────────────────────────
