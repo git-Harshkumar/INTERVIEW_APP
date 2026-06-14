@@ -1,0 +1,75 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSA Revision Tracker</title>
+<style>
+body{font-family:Arial,sans-serif;background:#121212;color:#eee;margin:20px}
+.card{background:#1e1e1e;padding:15px;border-radius:10px;margin:12px 0}
+input[type=text]{width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#222;color:#fff}
+.progress{font-size:18px;margin:15px 0}
+.topic h2{margin:0 0 10px}
+label{display:block;padding:4px}
+button{padding:8px 12px;border-radius:8px;cursor:pointer}
+</style>
+</head>
+<body>
+<h1>DSA Revision Tracker</h1>
+<input type="text" id="search" placeholder="Search problems..." onkeyup="filterProblems()">
+<div class="progress">Completed: <span id="done">0</span>/<span id="total">0</span></div>
+<div id="topics"></div>
+
+<script>
+const data = {
+"Arrays & Hashing":[["1","Two Sum"],["217","Contains Duplicate"],["242","Valid Anagram"],["49","Group Anagrams"],["347","Top K Frequent Elements"],["238","Product Except Self"],["36","Valid Sudoku"],["128","Longest Consecutive Sequence"],["41","First Missing Positive"],["560","Subarray Sum Equals K"]],
+"Two Pointers":[["125","Valid Palindrome"],["167","Two Sum II"],["11","Container With Most Water"],["15","3Sum"],["18","4Sum"],["42","Trapping Rain Water"],["26","Remove Duplicates"],["75","Sort Colors"],["88","Merge Sorted Array"],["977","Squares of Sorted Array"]],
+"Sliding Window":[["121","Best Time to Buy and Sell Stock"],["3","Longest Substring Without Repeating Characters"],["424","Character Replacement"],["567","Permutation in String"],["438","Find All Anagrams"],["209","Minimum Size Subarray Sum"],["1004","Max Consecutive Ones III"],["904","Fruit Into Baskets"],["76","Minimum Window Substring"],["239","Sliding Window Maximum"]],
+"Binary Search":[["704","Binary Search"],["35","Search Insert Position"],["33","Search in Rotated Array"],["153","Find Minimum in Rotated Array"],["875","Koko Eating Bananas"],["1011","Ship Packages"],["540","Single Element"],["74","Search 2D Matrix"],["410","Split Array Largest Sum"],["4","Median of Two Sorted Arrays"]]
+};
+
+const container=document.getElementById('topics');
+let total=0;
+
+for(const topic in data){
+ let div=document.createElement('div');
+ div.className='card topic';
+ let html=`<h2>${topic}</h2><button onclick="markTopic('${topic}')">Mark Topic Complete</button>`;
+ data[topic].forEach(([id,name])=>{
+   total++;
+   const key=topic+'-'+id;
+   const checked=localStorage.getItem(key)==='1'?'checked':'';
+   html+=`<label><input type="checkbox" ${checked} onchange="save('${key}',this.checked)"> ${id} - ${name}</label>`;
+ });
+ div.innerHTML=html;
+ container.appendChild(div);
+}
+document.getElementById('total').textContent=total;
+
+function save(key,val){
+ localStorage.setItem(key,val?'1':'0');
+ update();
+}
+function update(){
+ let done=0;
+ document.querySelectorAll('input[type=checkbox]').forEach(c=>{if(c.checked) done++;});
+ document.getElementById('done').textContent=done;
+}
+function markTopic(topic){
+ document.querySelectorAll('.topic').forEach(t=>{
+   if(t.querySelector('h2').innerText===topic){
+      t.querySelectorAll('input[type=checkbox]').forEach(c=>{c.checked=true;c.dispatchEvent(new Event('change'));});
+   }
+ });
+}
+function filterProblems(){
+ const q=document.getElementById('search').value.toLowerCase();
+ document.querySelectorAll('label').forEach(l=>{
+   l.style.display=l.innerText.toLowerCase().includes(q)?'block':'none';
+ });
+}
+update();
+</script>
+</body>
+</html>
