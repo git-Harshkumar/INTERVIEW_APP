@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Mail, Camera, Activity, Calendar, Trophy, Briefcase, MapPin, Link as LinkIcon, Edit2, Github, Twitter, Linkedin, Check, X } from 'lucide-react';
+import { User, Mail, Camera, Activity, Calendar, Trophy, Briefcase, MapPin, Link as LinkIcon, Edit2, Code2, MessageCircle, Users, Check, X } from 'lucide-react';
 
 export default function Profile({ user }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -148,9 +148,9 @@ export default function Profile({ user }) {
           <p className="text-gray-900 dark:text-white text-sm font-semibold mb-3.5 tracking-tight">Connect</p>
           <div className="flex flex-col gap-2.5">
             {[
-              { Icon: Github,   label: 'GitHub',   color: 'text-gray-900 dark:text-white' },
-              { Icon: Linkedin, label: 'LinkedIn',  color: 'text-blue-600' },
-              { Icon: Twitter,  label: 'Twitter',   color: 'text-sky-500' },
+              { Icon: Code2,   label: 'GitHub',   color: 'text-gray-900 dark:text-white' },
+              { Icon: Users, label: 'LinkedIn',  color: 'text-blue-600' },
+              { Icon: MessageCircle,  label: 'Twitter',   color: 'text-sky-500' },
             ].map(({ Icon, label, color }) => (
               <a key={label} href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 text-gray-600 dark:text-slate-300 no-underline text-sm transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
                 <Icon size={16} className={color} />
