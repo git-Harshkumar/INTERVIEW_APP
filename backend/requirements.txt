@@ -8,3 +8,5 @@ groq
 pypdf
 pydantic[email]
 python-multipart
+requests
+psycopg2-binary
