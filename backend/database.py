@@ -8,6 +8,11 @@ load_dotenv()
 
 # Fallback to SQLite if DATABASE_URL is not set
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./interview.db")
+
+# Render provides 'postgres://' but SQLAlchemy requires 'postgresql://'
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 print("DATABASE_URL =", repr(DATABASE_URL))
 
 # SQLite requires different connect_args for multithreading
