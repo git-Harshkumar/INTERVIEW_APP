@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -9,24 +9,40 @@
     --font-display: 'Instrument Serif', serif;
     --font-body: 'Inter', sans-serif;
 
-    --background: 201 100% 13%;
-    --foreground: 0 0% 100%;
-    
-    --muted-foreground: 240 4% 66%;
-    
-    --primary: 0 0% 100%;
-    --primary-foreground: 0 0% 4%;
-    
-    --secondary: 0 0% 10%;
-    --secondary-foreground: 0 0% 100%;
-    
-    --muted: 0 0% 10%;
-    
-    --accent: 0 0% 10%;
-    --accent-foreground: 0 0% 100%;
-    
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+
+    --muted-foreground: 215 16% 47%;
+
+    --primary: 222 47% 11%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+  }
+
+  /* Dark mode variables */
+  .dark {
+    --background: 222 47% 5%;
+    --foreground: 210 40% 98%;
+    --muted-foreground: 215 20% 65%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222 47% 5%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
   }
 
   body {
@@ -36,6 +52,7 @@
     margin: 0;
   }
 }
+
 
 @layer utilities {
   .liquid-glass {
@@ -48,7 +65,7 @@
     position: relative;
     overflow: hidden;
   }
-  
+
   .liquid-glass::before {
     content: '';
     position: absolute;
@@ -56,9 +73,9 @@
     border-radius: inherit;
     padding: 1.4px;
     background: linear-gradient(180deg,
-      rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 20%,
-      rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%,
-      rgba(255,255,255,0.15) 80%, rgba(255,255,255,0.45) 100%);
+        rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 20%,
+        rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0) 60%,
+        rgba(255, 255, 255, 0.15) 80%, rgba(255, 255, 255, 0.45) 100%);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -68,17 +85,24 @@
   .animate-fade-rise {
     animation: fade-rise 0.8s ease-out both;
   }
-  
+
   .animate-fade-rise-delay {
     animation: fade-rise 0.8s ease-out 0.2s both;
   }
-  
+
   .animate-fade-rise-delay-2 {
     animation: fade-rise 0.8s ease-out 0.4s both;
   }
 }
 
 @keyframes fade-rise {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

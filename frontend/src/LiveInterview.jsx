@@ -1,7 +1,8 @@
+import * as faceapi from "face-api.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import api from "./api";
 import ALEX_AVATAR from "./assets/alex-real.png";
-import * as faceapi from "face-api.js";
+import { Shield, Timer, LogOut, CheckCircle2, AlertTriangle, Play, Mic, RotateCcw, Video, Users, User, ArrowRight, Volume2, Sparkles, HelpCircle } from 'lucide-react';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const TOPIC_OPTIONS = [
@@ -19,9 +20,10 @@ const FILLER_WORDS = ["um", "uh", "like", "actually", "basically", "literally", 
 const SECURITY_LIMITS = {
   maxViolations: 5,
   warningThresholds: [1, 3, 5],
-  noFaceWarningSamples: 3,
-  multipleFaceWarningSamples: 2,
+  noFaceWarningSamples: 6,
+  multipleFaceWarningSamples: 4,
   resizeRatioThreshold: 0.22,
+  graceSeconds: 10,
 };
 
 const WARNING_TIER_MESSAGES = [
@@ -393,21 +395,21 @@ async function analyzeCodeSubmission({ code, language, challenge, customInputRaw
 
 // ─── Setup Screen ─────────────────────────────────────────────────────────────
 function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
-  const [jobRole,        setJobRole]        = useState("");
-  const [interviewType,  setInterviewType]  = useState("topics");
+  const [jobRole, setJobRole] = useState("");
+  const [interviewType, setInterviewType] = useState("topics");
   const [selectedTopics, setSelectedTopics] = useState(
     TOPIC_OPTIONS.includes(defaultTopic) ? [defaultTopic] : ["JavaScript", "React"]
   );
-  const [customTopic,    setCustomTopic]    = useState("");
-  const [cvText,         setCvText]         = useState("");
-  const [difficulty,     setDifficulty]     = useState(defaultDifficulty || "medium");
-  const [maxTurns,       setMaxTurns]       = useState(30);
-  const [enableCoding,   setEnableCoding]   = useState(true);
-  const [secureMode,     setSecureMode]     = useState(true);
+  const [customTopic, setCustomTopic] = useState("");
+  const [cvText, setCvText] = useState("");
+  const [difficulty, setDifficulty] = useState(defaultDifficulty || "medium");
+  const [maxTurns, setMaxTurns] = useState(5);
+  const [enableCoding, setEnableCoding] = useState(true);
+  const [secureMode, setSecureMode] = useState(true);
   const [violationLimit, setViolationLimit] = useState(SECURITY_LIMITS.maxViolations);
   const [warningThresholds, setWarningThresholds] = useState([...SECURITY_LIMITS.warningThresholds]);
   const [fullscreenReady, setFullscreenReady] = useState(false);
-  const [err,            setErr]            = useState("");
+  const [err, setErr] = useState("");
 
   const toggleTopic = (t) =>
     setSelectedTopics(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
@@ -428,10 +430,10 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
     }
     setErr("");
     onStart({
-      jobRole:       jobRole.trim() || "Software Engineer",
+      jobRole: jobRole.trim() || "Software Engineer",
       interviewType,
-      topics:        selectedTopics,
-      cvText:        cvText.trim(),
+      topics: selectedTopics,
+      cvText: cvText.trim(),
       difficulty,
       maxTurns,
       enableCoding,
@@ -518,65 +520,65 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
         )}
 
         {/* CV Upload */}
-{interviewType === "cv" && (
-  <div className="s-field">
-    <label className="s-label">📄 Upload Resume PDF</label>
+        {interviewType === "cv" && (
+          <div className="s-field">
+            <label className="s-label">📄 Upload Resume PDF</label>
 
-    <p className="s-hint-text">
-      Upload your resume in PDF format. AI will automatically extract the text and generate interview questions based on your experience.
-    </p>
+            <p className="s-hint-text">
+              Upload your resume in PDF format. AI will automatically extract the text and generate interview questions based on your experience.
+            </p>
 
-    <input
-      type="file"
-      accept=".pdf"
-      className="s-input"
-      onChange={async (e) => {
-        const file = e.target.files[0];
+            <input
+              type="file"
+              accept=".pdf"
+              className="s-input"
+              onChange={async (e) => {
+                const file = e.target.files[0];
 
-        if (!file) return;
+                if (!file) return;
 
-        const formData = new FormData();
-        formData.append("file", file);
+                const formData = new FormData();
+                formData.append("file", file);
 
-        try {
-          const res = await api.post(
-            "/interview/upload-cv",
-            formData,
-            {
-              headers: {
-                "Content-Type": "multipart/form-data",
-              },
-            }
-          );
+                try {
+                  const res = await api.post(
+                    "/interview/upload-cv",
+                    formData,
+                    {
+                      headers: {
+                        "Content-Type": "multipart/form-data",
+                      },
+                    }
+                  );
 
-          setCvText(res.data.cv_text);
+                  setCvText(res.data.cv_text);
 
-          alert("✅ Resume uploaded successfully!");
-        } catch (err) {
-          console.error(err);
-          alert(
-            err.response?.data?.detail ||
-            "Failed to upload PDF."
-          );
-        }
-      }}
-    />
+                  alert("✅ Resume uploaded successfully!");
+                } catch (err) {
+                  console.error(err);
+                  alert(
+                    err.response?.data?.detail ||
+                    "Failed to upload PDF."
+                  );
+                }
+              }}
+            />
 
-    {cvText && (
-      <div
-        style={{
-          marginTop: "12px",
-          padding: "10px",
-          borderRadius: "8px",
-          background: "rgba(34,197,94,.08)",
-          border: "1px solid rgba(34,197,94,.25)",
-        }}
-      >
-        ✅ Resume parsed successfully
-      </div>
-    )}
-  </div>
-)}
+            {cvText && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "10px",
+                  borderRadius: "8px",
+                  background: "rgba(34,197,94,.08)",
+                  border: "1px solid rgba(34,197,94,.25)",
+                }}
+              >
+                ✅ Resume parsed successfully
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Difficulty + Questions */}
         <div className="s-two-col">
@@ -597,7 +599,7 @@ function SetupScreen({ onStart, defaultTopic, defaultDifficulty }) {
           <div className="s-field">
             <label className="s-label">❓ Questions</label>
             <div className="s-seg">
-              {[3, 5, 6, 8].map(n => (
+              {[3, 5, 8, 10].map(n => (
                 <button
                   key={n}
                   className={`s-seg-btn ${maxTurns === n ? "s-seg-btn-on" : ""}`}
@@ -713,18 +715,18 @@ export default function LiveInterview({
   topic: defaultTopic = "React",
   difficulty: defaultDiff = "medium",
 }) {
-  const [screen,     setScreen]     = useState("setup");
-  const [config,     setConfig]     = useState(null);
-  const [phase,      setPhase]      = useState("");   // thinking|speaking|recording|submitting|done
-  const [currentQ,   setCurrentQ]   = useState("");
+  const [screen, setScreen] = useState("setup");
+  const [config, setConfig] = useState(null);
+  const [phase, setPhase] = useState("");   // thinking|speaking|recording|submitting|done
+  const [currentQ, setCurrentQ] = useState("");
   const [, setTranscript] = useState("");
-  const [chatLog,    setChatLog]    = useState([]);
-  const [report,     setReport]     = useState(null);
-  const [turn,       setTurn]       = useState(0);
-  const [volume,     setVolume]     = useState(0);
-  const [errMsg,     setErrMsg]     = useState("");
-  const [elapsed,    setElapsed]    = useState(0);
-  const [isFS,       setIsFS]       = useState(false);
+  const [chatLog, setChatLog] = useState([]);
+  const [report, setReport] = useState(null);
+  const [turn, setTurn] = useState(0);
+  const [volume, setVolume] = useState(0);
+  const [errMsg, setErrMsg] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+  const [isFS, setIsFS] = useState(false);
   const [cameraStatus, setCameraStatus] = useState("off");
   const [faceStatus, setFaceStatus] = useState("Loading face analysis...");
   const [faceSnapshot, setFaceSnapshot] = useState(null);
@@ -732,6 +734,7 @@ export default function LiveInterview({
   const [securityWarning, setSecurityWarning] = useState("");
   const [warningTier, setWarningTier] = useState(0);
   const [interviewerAlert, setInterviewerAlert] = useState(false);
+  const securityWarningRef = useRef("");
   const [showEventLog, setShowEventLog] = useState(false);
   const [needsFullscreen, setNeedsFullscreen] = useState(false);
   const [codingChallenge, setCodingChallenge] = useState(DEFAULT_CODING_CHALLENGE);
@@ -741,23 +744,23 @@ export default function LiveInterview({
   const [codeResult, setCodeResult] = useState(null);
   const [executionHistory, setExecutionHistory] = useState([]);
 
-  const mediaRecRef  = useRef(null);
-  const chunksRef    = useRef([]);
-  const resolveRef   = useRef(null);
-  const streamRef    = useRef(null);
+  const mediaRecRef = useRef(null);
+  const chunksRef = useRef([]);
+  const resolveRef = useRef(null);
+  const streamRef = useRef(null);
   const cameraStreamRef = useRef(null);
-  const analyserRef  = useRef(null);
-  const audioCtxRef   = useRef(null);
-  const volTimer     = useRef(null);
-  const faceTimer    = useRef(null);
-  const timerRef     = useRef(null);
-  const mounted      = useRef(true);
+  const analyserRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const volTimer = useRef(null);
+  const faceTimer = useRef(null);
+  const timerRef = useRef(null);
+  const mounted = useRef(true);
   const runActiveRef = useRef(false);
   const speakTokenRef = useRef(0);
   const containerRef = useRef(null);
-  const configRef    = useRef(null);
-  const videoRef     = useRef(null);
-  const phaseRef     = useRef("");
+  const configRef = useRef(null);
+  const videoRef = useRef(null);
+  const phaseRef = useRef("");
   const faceModelsLoadedRef = useRef(false);
   const faceStatsRef = useRef(createFaceStats());
   const answerMetricsRef = useRef([]);
@@ -790,7 +793,7 @@ export default function LiveInterview({
       runActiveRef.current = false;
       _stopRec();
       const closeAudio = audioCtxRef.current?.close?.();
-      closeAudio?.catch?.(() => {});
+      closeAudio?.catch?.(() => { });
       streamRef.current?.getTracks().forEach(t => t.stop());
       cameraStreamRef.current?.getTracks().forEach(t => t.stop());
     };
@@ -805,6 +808,7 @@ export default function LiveInterview({
 
   useEffect(() => { configRef.current = config; }, [config]);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { securityWarningRef.current = securityWarning; }, [securityWarning]);
 
   useEffect(() => {
     if (screen !== "interview" || !cameraStreamRef.current || !videoRef.current) return;
@@ -815,6 +819,19 @@ export default function LiveInterview({
 
   function _logViolation(type, detail, severity = "medium", { skipTier = false, skipAiNotify = false } = {}) {
     if (!configRef.current?.secureMode || phaseRef.current === "done") return null;
+
+    // Ignore certain violations during the grace stabilization window
+    const elapsedSec = interviewStartedAtRef.current
+      ? Math.floor((Date.now() - new Date(interviewStartedAtRef.current).getTime()) / 1000)
+      : 0;
+    if (elapsedSec < SECURITY_LIMITS.graceSeconds && ["window_blur", "window_resize", "multiple_faces", "candidate_absent", "display_risk", "multiple_displays"].includes(type)) {
+      return null;
+    }
+    // Suppress window_blur when the security warning modal is displayed (it steals focus itself)
+    if (type === "window_blur" && securityWarningRef.current) {
+      return null;
+    }
+
     const entry = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       type,
@@ -827,10 +844,13 @@ export default function LiveInterview({
     setViolations(violationsRef.current);
 
     const thresholds = configRef.current?.warningThresholds || SECURITY_LIMITS.warningThresholds;
-    const tier = getWarningTier(violationsRef.current.length, thresholds);
+    const activeViolationsCount = violationsRef.current.filter(
+      v => !["interview_start", "interview_end", "screen_share_limit", "multiple_displays", "display_risk", "coding_run", "coding_submission"].includes(v.type)
+    ).length;
+    const tier = getWarningTier(activeViolationsCount, thresholds);
     const tierMessage = tier > 0 ? WARNING_TIER_MESSAGES[tier - 1] : detail;
 
-    if (!skipTier) {
+    if (!skipTier && !["interview_start", "interview_end", "screen_share_limit", "multiple_displays", "display_risk", "coding_run", "coding_submission"].includes(type)) {
       setSecurityWarning(tierMessage);
       setWarningTier(tier);
     }
@@ -844,7 +864,7 @@ export default function LiveInterview({
         timestamp: entry.timestamp,
       }]);
       notifyAiRef.current?.(tier, tierMessage);
-    } else if (tier === 1 && violationsRef.current.length === thresholds[0]) {
+    } else if (tier === 1 && activeViolationsCount === thresholds[0] && !["interview_start", "interview_end", "screen_share_limit", "multiple_displays", "display_risk", "coding_run", "coding_submission"].includes(type)) {
       setChatLog(prev => [...prev, {
         role: "system",
         content: `[Proctoring Notice] ${WARNING_TIER_MESSAGES[0]}`,
@@ -853,7 +873,7 @@ export default function LiveInterview({
     }
 
     const limit = configRef.current?.violationLimit || thresholds[2] || SECURITY_LIMITS.maxViolations;
-    if (violationsRef.current.length >= limit) {
+    if (activeViolationsCount >= limit) {
       setInterviewerAlert(true);
       setErrMsg("Security threshold exceeded. The interviewer has been notified in the integrity report.");
     }
@@ -980,7 +1000,7 @@ export default function LiveInterview({
       // Recorder may already be inactive when the user exits or re-records.
     }
     mediaRecRef.current = null;
-    chunksRef.current   = [];
+    chunksRef.current = [];
   }
 
   async function _initMic() {
@@ -992,7 +1012,7 @@ export default function LiveInterview({
       if (AC) {
         const ctx = new AC();
         if (ctx.state === "suspended") await ctx.resume();
-        const an  = ctx.createAnalyser();
+        const an = ctx.createAnalyser();
         an.fftSize = 256;
         an.smoothingTimeConstant = 0.75;
         ctx.createMediaStreamSource(stream).connect(an);
@@ -1140,10 +1160,10 @@ export default function LiveInterview({
     };
     const hiringRecommendation =
       integrityReport.flaggedForReview ? "Do not proceed — integrity review required" :
-      rpt.overallScore >= 80 && securityAnalysis.highRisk === 0 ? "Strong hire" :
-      rpt.overallScore >= 65 && securityAnalysis.highRisk <= 1 ? "Hire / continue process" :
-      rpt.overallScore >= 50 ? "Borderline - needs review" :
-      "Do not proceed";
+        rpt.overallScore >= 80 && securityAnalysis.highRisk === 0 ? "Strong hire" :
+          rpt.overallScore >= 65 && securityAnalysis.highRisk <= 1 ? "Hire / continue process" :
+            rpt.overallScore >= 50 ? "Borderline - needs review" :
+              "Do not proceed";
 
     setReport({
       ...rpt,
@@ -1188,9 +1208,9 @@ export default function LiveInterview({
         u.rate = 1.35; u.pitch = 1;
         const voices = synth.getVoices();
         const v = voices.find(v => v.name.includes("Google") && v.lang === "en-US")
-               || voices.find(v => v.lang.startsWith("en"));
+          || voices.find(v => v.lang.startsWith("en"));
         if (v) u.voice = v;
-        u.onend  = () => token === speakTokenRef.current && next();
+        u.onend = () => token === speakTokenRef.current && next();
         u.onerror = () => token === speakTokenRef.current && next();
         synth.speak(u);
       };
@@ -1209,7 +1229,7 @@ export default function LiveInterview({
       setErrMsg("Microphone is not active. Allow microphone access and restart the interview.");
       return false;
     }
-    audioCtxRef.current?.resume?.().catch?.(() => {});
+    audioCtxRef.current?.resume?.().catch?.(() => { });
     chunksRef.current = [];
     const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", ""]
       .find(t => !t || MediaRecorder.isTypeSupported(t)) || "";
@@ -1234,7 +1254,7 @@ export default function LiveInterview({
       mr.onstop = async () => {
         const type = mr.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type });
-        chunksRef.current  = [];
+        chunksRef.current = [];
         mediaRecRef.current = null;
         if (blob.size < 500) { resolve(""); return; }
         const fd = new FormData();
@@ -1316,14 +1336,14 @@ export default function LiveInterview({
       let aiData;
       try {
         const res = await api.post("/interview/chat", {
-          messages:   [..._securityContextMessages(), ...history],
-          system:     "",
-          topic:      topicStr,
+          messages: [..._securityContextMessages(), ...history],
+          system: "",
+          topic: topicStr,
           difficulty: cfg.difficulty,
-          turn:       t,
-          maxTurns:   cfg.maxTurns,
-          cv_text:    cfg.cvText,
-          job_role:   cfg.jobRole,
+          turn: t,
+          maxTurns: cfg.maxTurns,
+          cv_text: cfg.cvText,
+          job_role: cfg.jobRole,
         });
         aiData = res.data;
       } catch (err) {
@@ -1364,7 +1384,7 @@ export default function LiveInterview({
       history = [
         ...history,
         { role: "assistant", content: question },
-        { role: "user",      content: answer   },
+        { role: "user", content: answer },
       ];
     }
 
@@ -1374,14 +1394,14 @@ export default function LiveInterview({
     const cfg2 = configRef.current;
     try {
       const res = await api.post("/interview/chat", {
-        messages:   [..._securityContextMessages(), ...history],
-        system:     "",
-        topic:      cfg2.topics.join(", "),
+        messages: [..._securityContextMessages(), ...history],
+        system: "",
+        topic: cfg2.topics.join(", "),
         difficulty: cfg2.difficulty,
-        turn:       cfg2.maxTurns,
-        maxTurns:   cfg2.maxTurns,
-        cv_text:    cfg2.cvText,
-        job_role:   cfg2.jobRole,
+        turn: cfg2.maxTurns,
+        maxTurns: cfg2.maxTurns,
+        cv_text: cfg2.cvText,
+        job_role: cfg2.jobRole,
       });
       const d = res.data;
       if (d.report) {
@@ -1628,8 +1648,9 @@ export default function LiveInterview({
   // ── Timer display ─────────────────────────────────────────────────────────────
   const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
   const ss = String(elapsed % 60).padStart(2, "0");
-  const volPct   = Math.min(volume * 3.5, 100);
+  const volPct = Math.min(volume * 3.5, 100);
   const volColor = volume > 18 ? "#22c55e" : volume > 7 ? "#f59e0b" : "#1e293b";
+  const activeViolations = violations.filter(v => !["interview_start", "interview_end", "screen_share_limit", "multiple_displays", "display_risk", "coding_run", "coding_submission"].includes(v.type));
 
   // ─── RENDER ──────────────────────────────────────────────────────────────────
   return (
@@ -1650,41 +1671,48 @@ export default function LiveInterview({
 
           {/* Top bar */}
           <header className="ir-topbar">
-            <div className="ir-logo">
-              <span className="ir-logo-dot" />
-              PrepMate AI
+            <div className="ir-logo-wrap">
+              <div className="ir-logo-icon">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <span className="ir-logo-text">PrepMate AI</span>
             </div>
 
             {/* Progress dots */}
             <div className="ir-progress">
-              {phase !== "done" && Array.from({ length: config?.maxTurns || 6 }, (_, i) => (
+              {phase !== "done" && Array.from({ length: config?.maxTurns || 5 }, (_, i) => (
                 <div
                   key={i}
                   className={`ir-pdot ${i < turn ? "ir-pdot-done" : i === turn - 1 ? "ir-pdot-cur" : ""}`}
                 />
               ))}
-              {phase !== "done" && turn > 0 && (
-                <span className="ir-turn-label">Q{turn}/{config?.maxTurns}</span>
-              )}
             </div>
 
             <div className="ir-topbar-right">
               {config?.secureMode && (
                 <button
-                  className={`ir-viol-badge${interviewerAlert ? " ir-viol-badge-alert" : ""}`}
+                  className={`ir-viol-badge-premium ${
+                    activeViolations.length > 0 ? "ir-viol-badge-alert" : "ir-viol-badge-clean"
+                  }`}
                   onClick={() => setShowEventLog(v => !v)}
                   title="Interviewer proctoring dashboard"
                 >
-                  🛡 {violations.length} violation{violations.length !== 1 ? "s" : ""}
-                  {warningTier > 0 && <span className="ir-viol-tier">T{warningTier}</span>}
+                  <Shield size={14} className={activeViolations.length > 0 ? "text-red-400" : "text-emerald-500"} />
+                  <span>{activeViolations.length} Violations</span>
                 </button>
               )}
               {!isFS && config?.secureMode && (
                 <span className="ir-fs-warn">Not fullscreen</span>
               )}
-              <span className="ir-timer">⏱ {mm}:{ss}</span>
-              <button className="ir-exit-btn" onClick={handleExit} title="Exit Interview">
-                ✕ Exit
+              <div className="ir-timer-pill">
+                <Timer size={14} className="text-slate-400" />
+                <span>{mm}:{ss}</span>
+              </div>
+              <button className="ir-exit-btn-premium" onClick={handleExit} title="Exit Interview">
+                <LogOut size={13} />
+                <span>Exit</span>
               </button>
             </div>
           </header>
@@ -1701,8 +1729,8 @@ export default function LiveInterview({
                 <p className="text-gray-600 dark:text-gray-300 text-lg mb-8 leading-relaxed">
                   {securityWarning}
                 </p>
-                <button 
-                  onClick={() => setSecurityWarning("")} 
+                <button
+                  onClick={() => setSecurityWarning("")}
                   className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 shadow-lg shadow-red-600/30 text-lg"
                 >
                   I Understand, Resume Interview
@@ -1770,39 +1798,97 @@ export default function LiveInterview({
               {/* SPEAKING */}
               {phase === "speaking" && (
                 <div className="ir-q-card ir-q-card-speaking">
-                  <span className="ir-q-label">🎙 Alex is asking:</span>
-                  <p className="ir-q-text">{currentQ}</p>
+                  <div className="ir-session-label">
+                    <span className="ir-session-phase">SESSION PHASE {String(turn).padStart(2,'0')}/{String(config?.maxTurns||5).padStart(2,'0')}</span>
+                  </div>
+                  <span className="ir-q-label">— INQUIRY FRAGMENT</span>
+                  <p className="ir-q-text">"{currentQ}"</p>
+                  {config?.topics?.length > 0 && (
+                    <div className="ir-topic-tags-premium">
+                      {config.topics.slice(0, 3).map(t => (
+                        <span key={t} className="ir-topic-tag-premium">
+                          <Sparkles size={11} />
+                          <span>{t.toUpperCase()}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* RECORDING */}
               {phase === "recording" && (
                 <div className="ir-answer-area">
-                  {/* Compact question reminder */}
-                  <div className="ir-q-mini">
-                    <span className="ir-q-mini-label">Question</span>
-                    <p className="ir-q-mini-text">{currentQ}</p>
+                  {/* Session phase + question card */}
+                  <div className="ir-q-card ir-q-card-recording">
+                    <div className="ir-session-label">
+                      <span className="ir-session-phase">SESSION PHASE {String(turn).padStart(2,'0')}/{String(config?.maxTurns||5).padStart(2,'0')}</span>
+                    </div>
+                    <span className="ir-q-label">— INQUIRY FRAGMENT</span>
+                    <p className="ir-q-text">"{currentQ}"</p>
+                    {config?.topics?.length > 0 && (
+                      <div className="ir-topic-tags-premium">
+                        {config.topics.slice(0, 3).map(t => (
+                          <span key={t} className="ir-topic-tag-premium">
+                            <Sparkles size={11} />
+                            <span>{t.toUpperCase()}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Recording indicator */}
-                  <div className="ir-rec-box">
-                    <div className="ir-rec-header">
-                      <span className="ir-rec-dot" />
-                      <span className="ir-rec-label">Recording — speak your answer now</span>
+                  {/* Recording panel */}
+                  <div className="ir-rec-panel-premium">
+                    <div className="ir-rec-main-row">
+                      <div className="ir-rec-mic-btn">
+                        <Mic size={18} className="text-white" />
+                      </div>
+                      <div className="ir-rec-info">
+                        <span className="ir-rec-status-text">Recording Response...</span>
+                        <span className="ir-rec-timer-text">
+                          <span className="ir-rec-dot-active" />
+                          {mm}:{ss} / 03:00
+                        </span>
+                      </div>
+                      <div className="ir-rec-amplitude-bars">
+                        {[...Array(6)].map((_, i) => {
+                          const h = Math.max(4, Math.min(24, (volume * (i + 1)) % 24 + 4));
+                          return (
+                            <span 
+                              key={i} 
+                              className="ir-amplitude-bar" 
+                              style={{ height: `${h}px` }} 
+                            />
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="ir-speak-area">
-                      <p className="ir-speak-hint">
-                        Speak clearly into your microphone.<br />
-                        Click <strong>Submit Answer</strong> when you're done.
-                      </p>
+
+                    {/* Horizontal Waveform */}
+                    <div className="ir-rec-waveform-row">
+                      {[...Array(40)].map((_, i) => {
+                        const h = 4 + Math.sin(i * 0.4 + elapsed * 2) * (volume > 4 ? 12 : 3) + Math.random() * 4;
+                        return (
+                          <span 
+                            key={i} 
+                            className="ir-waveform-stick" 
+                            style={{ height: `${Math.max(4, h)}px` }} 
+                          />
+                        );
+                      })}
                     </div>
+
                     {errMsg && <p className="ir-err">{errMsg}</p>}
-                    <div className="ir-btn-row">
-                      <button className="ir-btn ir-btn-submit" onClick={handleSubmit}>
-                        ✅ Submit Answer
+
+                    <div className="ir-btn-row-premium">
+                      <button className="ir-btn-rerecord-premium" onClick={handleReRecord}>
+                        <RotateCcw size={13} />
+                        <span>Re-record</span>
                       </button>
-                      <button className="ir-btn ir-btn-ghost" onClick={handleReRecord}>
-                        🔄 Re-record
+                      <button className="ir-btn-submit-premium" onClick={handleSubmit}>
+                        <span>Submit Answer</span>
+                        <ArrowRight size={14} />
                       </button>
                     </div>
                   </div>
@@ -2004,63 +2090,37 @@ export default function LiveInterview({
 
 // ─── Animated AI Avatar (no external API needed) ──────────────────────────────
 function AnimatedAvatar({ phase }) {
-  const isSpeaking   = phase === "speaking";
-  const isListening  = phase === "recording";
-  const isThinking   = phase === "thinking" || phase === "submitting";
+  const isSpeaking = phase === "speaking";
+  const isListening = phase === "recording";
+  const isThinking = phase === "thinking" || phase === "submitting";
+
+  let statusText = "••• AI INTERVIEWER IDLE";
+  if (isSpeaking) statusText = "••• AI INTERVIEWER SPEAKING";
+  if (isListening) statusText = "••• AI INTERVIEWER LISTENING";
+  if (isThinking) statusText = "••• AI INTERVIEWER THINKING";
 
   return (
-    <div className={`ir-video-card${isSpeaking ? " ir-video-speaking" : isListening ? " ir-video-listening" : isThinking ? " ir-video-thinking" : ""}`}>
-      <div className="ir-face-wrap">
-
-        {/* Animated ring glow */}
-        <div className={`av-ring-outer${isSpeaking ? " av-ring-speaking" : isListening ? " av-ring-listening" : ""}`} />
-
-        {/* Avatar portrait image */}
+    <div className="ir-avatar-container">
+      <div className={`ir-avatar-circle-wrap ${isSpeaking ? "speaking" : isListening ? "listening" : isThinking ? "thinking" : ""}`}>
+        <div className="ir-avatar-circle-glow" />
         <img
           src={ALEX_AVATAR}
           alt="Alex — AI Interviewer"
-          className={`ir-face-img${isSpeaking ? " av-img-talking" : isListening ? " av-img-listening" : isThinking ? " av-img-thinking" : " av-img-idle"}`}
+          className="ir-avatar-circle-img"
           draggable={false}
         />
-
-        <div className={`av-life-layer${isSpeaking ? " av-life-speaking" : isListening ? " av-life-listening" : ""}`}>
-          <span className="av-eye av-eye-left" />
-          <span className="av-eye av-eye-right" />
-          <span className="av-mouth">
-            <span />
-            <span />
-            <span />
-          </span>
-        </div>
-
-        {/* Speaking wave bars overlay */}
         {isSpeaking && (
-          <div className="av-wave-overlay">
-            {[...Array(7)].map((_, i) => (
-              <span key={i} className="av-wave-bar" style={{ animationDelay: `${i * 0.1}s` }} />
+          <div className="av-wave-overlay-premium">
+            {[...Array(5)].map((_, i) => (
+              <span key={i} className="av-wave-bar-premium" style={{ animationDelay: `${i * 0.1}s` }} />
             ))}
           </div>
         )}
-
-        {/* Thinking / processing spinner overlay */}
-        {isThinking && (
-          <div className="av-thinking-overlay">
-            <div className="av-think-ring" />
-          </div>
-        )}
-
-        {/* Video overlay — nameplate + status badge */}
-        <div className="ir-video-overlay">
-          <div className="ir-nameplate">
-            <span className={`ir-np-dot${isSpeaking ? " ir-np-dot-live" : isListening ? " ir-np-dot-listen" : ""}`} />
-            Alex
-          </div>
-          {isSpeaking  && <div className="ir-speaking-badge"><WaveBars /> Speaking</div>}
-          {isThinking  && <div className="ir-thinking-badge"><Spin /> Thinking</div>}
-          {isListening && <div className="ir-listening-badge"><Pulse /> Listening</div>}
-        </div>
       </div>
-      <div className="ir-role-tag">Senior Software Engineer · AI Interviewer</div>
+      <h3 className="ir-avatar-name">Alex</h3>
+      <p className={`ir-avatar-status ${isSpeaking ? "status-speaking" : isListening ? "status-listening" : isThinking ? "status-thinking" : ""}`}>
+        {statusText}
+      </p>
     </div>
   );
 }
@@ -2068,27 +2128,73 @@ function AnimatedAvatar({ phase }) {
 // ─── Small sub-components ──────────────────────────────────────────────────────
 function CandidateCamera({ videoRef, status, faceStatus, snapshot }) {
   const isOn = status === "on";
-  const expression = snapshot?.detected ? snapshot.dominant : status === "blocked" ? "Camera blocked" : "Waiting";
+  const isStarting = status === "starting";
 
   return (
-    <div className="ir-camera-card">
-      <div className="ir-camera-frame">
-        <video ref={videoRef} className="ir-camera-video" autoPlay muted playsInline />
+    <div className="ir-camera-premium">
+      {/* You label header */}
+      <div className="ir-camera-you-label">
+        <div className="ir-camera-you-dot" />
+        <span>YOU (Candidate Preview)</span>
+      </div>
+
+      <div className="ir-camera-frame-premium">
+        {/* Corner guide markers for biometrics */}
+        <div className="ir-camera-corner corner-tl" />
+        <div className="ir-camera-corner corner-tr" />
+        <div className="ir-camera-corner corner-bl" />
+        <div className="ir-camera-corner corner-br" />
+
+        <video ref={videoRef} className="ir-camera-video-premium" autoPlay muted playsInline />
+
+        {/* Overlay when camera not yet on */}
         {!isOn && (
-          <div className="ir-camera-empty">
-            <span>{status === "blocked" ? "Camera unavailable" : "Starting camera"}</span>
+          <div className="ir-camera-empty-premium">
+            {isStarting ? (
+              <div className="ir-camera-starting">
+                <div className="ir-camera-spinner" />
+                <span>Starting camera…</span>
+              </div>
+            ) : (
+              <div className="ir-camera-starting">
+                <span className="ir-camera-blocked-icon">{status === "blocked" ? "🚫" : "📷"}</span>
+                <span>{status === "blocked" ? "Camera Unavailable" : "Waiting for camera…"}</span>
+              </div>
+            )}
           </div>
         )}
-        <div className="ir-camera-overlay">
-          <span className={`ir-camera-dot ${snapshot?.detected ? "ir-camera-dot-on" : ""}`} />
-          <span>{expression}</span>
-          {snapshot?.detected && <strong>{snapshot.confidence}%</strong>}
+
+        {/* Top Biometrics active badge */}
+        <div className="ir-camera-badge-top">
+          <span className="ir-camera-badge-dot" />
+          <span>BIOMETRICS ACTIVE</span>
         </div>
+
+        {/* Bottom expression/status badge */}
+        <div className="ir-camera-badge-bottom">
+          {snapshot?.detected && snapshot?.dominant
+            ? <span>😊 {snapshot.dominant.toUpperCase()} · {snapshot.confidence}%</span>
+            : <span>LIVE STREAM</span>
+          }
+        </div>
+
+        {/* Face-not-detected warning overlay */}
+        {isOn && snapshot && !snapshot.detected && (
+          <div className="ir-camera-no-face">
+            <span>👤 No face detected</span>
+          </div>
+        )}
       </div>
-      <div className="ir-camera-meta">
-        <span>Candidate camera</span>
-        <small>{faceStatus}</small>
-      </div>
+
+      {/* Face status text below camera */}
+      <p className="ir-camera-status-text">
+        {isOn
+          ? (snapshot?.detected
+              ? `✅ Face detected · ${faceStatus}`
+              : `⚠️ ${faceStatus}`)
+          : (status === "blocked" ? "🚫 Camera blocked — allow access" : "⏳ Initialising camera…")
+        }
+      </p>
     </div>
   );
 }
@@ -2143,12 +2249,11 @@ function ProctoringDashboard({ violations, warningTier, thresholds, onClose }) {
         <span>T3 @ {thresholds[2]}: {WARNING_TIER_MESSAGES[2]}</span>
       </div>
       <div className="ir-proctor-log">
-        <p className="ir-proctor-log-title">Event Log</p>
-        {violations.length === 0 && <p className="ir-dim">No events yet.</p>}
-        {[...violations].reverse().map(v => (
-          <div key={v.id} className={`ir-proctor-event ir-sev-${v.severity}`}>
+        <p className="ir-proctor-log-title">Violation Log</p>
+        {auditViolations.map((v, i) => (
+          <div key={i} className={`ir-proctor-event ir-sev-${v.severity}`}>
             <span className="ir-proctor-time">{new Date(v.timestamp).toLocaleTimeString()}</span>
-            <strong>{v.label || v.type}</strong>
+            <strong>{v.label}</strong>
             <p>{v.detail}</p>
           </div>
         ))}
@@ -2157,853 +2262,1079 @@ function ProctoringDashboard({ violations, warningTier, thresholds, onClose }) {
   );
 }
 
-function IntegrityReportSection({ report }) {
-  return (
-    <div className="ir-integrity-card ir-integrity-main">
-      <p className="ir-delivery-kicker">Integrity Report</p>
-      <p className="ir-delivery-summary">{report.recommendation}</p>
-      <div className="ir-delivery-stats">
-        <MiniMetric label="Total events" value={report.totalEvents} />
-        <MiniMetric label="Warning tier" value={`T${report.warningTier}`} />
-        <MiniMetric label="Flagged" value={report.flaggedForReview ? "Yes" : "No"} />
-        <MiniMetric label="Duration" value={`${Math.floor(report.durationSec / 60)}m ${report.durationSec % 60}s`} />
-      </div>
-      {report.warningMessage && (
-        <div className={`ir-sec-banner ir-sec-tier-${report.warningTier}`}>
-          <p>{report.warningMessage}</p>
-        </div>
-      )}
-      <div className="ir-proctor-log ir-integrity-log">
-        <p className="ir-proctor-log-title">Complete Audit Trail</p>
-        {report.events.map(v => (
-          <div key={v.id} className={`ir-proctor-event ir-sev-${v.severity}`}>
-            <span className="ir-proctor-time">{new Date(v.timestamp).toLocaleString()}</span>
-            <strong>{v.label || v.type}</strong>
-            <p>{v.detail}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Spin()     { return <span className="li-spin" />;  }
-function Pulse()    { return <span className="li-pulse" />; }
-function WaveBars() {
-  return (
-    <span className="li-wave">
-      <span /><span /><span /><span />
-    </span>
-  );
-}
-
-// ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
-/* ── Root ────────────────────────────────────────────────────────────────── */
-.li-root { font-family:'Inter',sans-serif; color:#f1f5f9; }
+/* ── Root ── */
+.li-root {
+  font-family: 'Inter', sans-serif;
+  color: #1e293b;
+  background: #f8fafc;
+}
 .li-root-fs {
-  position:fixed; top:0; left:0; width:100vw; height:100vh;
-  z-index:9999; overflow:auto; background:#020817;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  overflow: auto;
+  background: #f8fafc;
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   SETUP SCREEN
-══════════════════════════════════════════════════════════════════════════ */
+/* ── SETUP SCREEN ── */
 .s-wrap {
-  min-height:100vh; display:flex; align-items:flex-start;
-  justify-content:center; padding:32px 16px;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
 }
 .s-card {
-  width:100%; max-width:760px;
-  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
-  border-radius:20px; padding:36px 40px;
+  width: 100%;
+  max-width: 760px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.03);
 }
-@media(max-width:600px){ .s-card{ padding:24px 18px; } }
+@media(max-width:600px){ .s-card{ padding: 24px 18px; } }
 
-.s-head { margin-bottom:28px; }
+.s-head { margin-bottom: 28px; }
 .s-badge {
-  display:inline-block; font-size:10px; font-weight:700; letter-spacing:.1em;
-  text-transform:uppercase; color:#60a5fa;
-  background:rgba(96,165,250,.1); border:1px solid rgba(96,165,250,.25);
-  border-radius:99px; padding:3px 12px; margin-bottom:10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.15);
+  border-radius: 99px;
+  padding: 4px 12px;
+  margin-bottom: 10px;
 }
-.s-title { font-size:24px; font-weight:700; margin:0 0 8px; }
-.s-sub   { color:#94a3b8; font-size:14px; line-height:1.65; margin:0; }
+.s-title { font-size: 26px; font-weight: 800; color: #0f172a; margin: 0 0 8px; }
+.s-sub { color: #64748b; font-size: 14px; line-height: 1.65; margin: 0; }
 
-.s-field { margin-bottom:22px; }
+.s-field { margin-bottom: 22px; }
 .s-label {
-  display:flex; align-items:center; gap:8px;
-  font-size:13px; font-weight:600; color:#cbd5e1; margin-bottom:10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 10px;
 }
 .s-label-count {
-  font-size:11px; font-weight:400; color:#60a5fa;
-  background:rgba(96,165,250,.1); border-radius:99px; padding:1px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 99px;
+  padding: 1px 8px;
 }
-.s-hint-text { font-size:12px; color:#64748b; margin:0 0 10px; line-height:1.5; }
+.s-hint-text { font-size: 12px; color: #64748b; margin: 0 0 10px; line-height: 1.5; }
 
 .s-input {
-  width:100%; box-sizing:border-box; padding:11px 14px;
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
-  border-radius:10px; color:#f1f5f9; font-size:14px; font-family:inherit;
-  outline:none; transition:border-color .2s;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  color: #0f172a;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: all .2s;
 }
-.s-input:focus { border-color:rgba(59,130,246,.5); }
-.s-input::placeholder { color:#475569; }
-.s-input-sm { width:auto; flex:1; }
-
-.s-textarea {
-  width:100%; box-sizing:border-box; padding:12px 14px;
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
-  border-radius:10px; color:#f1f5f9; font-size:13px; font-family:inherit;
-  resize:vertical; outline:none; transition:border-color .2s; line-height:1.6;
-}
-.s-textarea:focus { border-color:rgba(59,130,246,.5); }
-.s-textarea::placeholder { color:#475569; }
+.s-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+.s-input::placeholder { color: #94a3b8; }
+.s-input-sm { width: auto; flex: 1; }
 
 /* Type toggle */
-.s-toggle-row { display:flex; gap:10px; }
+.s-toggle-row { display: flex; gap: 10px; }
 .s-toggle-btn {
-  flex:1; padding:14px 16px; border-radius:12px; border:1px solid rgba(255,255,255,.1);
-  background:rgba(255,255,255,.04); color:#94a3b8; cursor:pointer;
-  display:flex; flex-direction:column; align-items:center; gap:4px;
-  font-size:14px; font-weight:600; transition:all .18s;
+  flex: 1;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all .18s;
 }
-.s-toggle-btn:hover { border-color:rgba(255,255,255,.2); color:#e2e8f0; }
+.s-toggle-btn:hover { border-color: #cbd5e1; color: #334155; }
 .s-toggle-btn-on {
-  background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.4);
-  color:#60a5fa;
+  background: rgba(37, 99, 235, 0.05);
+  border-color: #3b82f6;
+  color: #2563eb;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.05);
 }
-.s-toggle-hint { font-size:11px; font-weight:400; color:inherit; opacity:.7; }
+.s-toggle-hint { font-size: 11px; font-weight: 400; color: inherit; opacity: .8; }
 
 /* Topic pills */
-.s-pill-grid { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:12px; }
+.s-pill-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .s-pill {
-  padding:5px 13px; border-radius:99px; font-size:12px; font-weight:500;
-  border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04);
-  color:#94a3b8; cursor:pointer; transition:all .15s;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  transition: all .15s;
 }
-.s-pill:hover { border-color:rgba(255,255,255,.2); color:#e2e8f0; }
+.s-pill:hover { border-color: #cbd5e1; color: #334155; }
 .s-pill-on {
-  background:rgba(59,130,246,.15); border-color:rgba(59,130,246,.5); color:#60a5fa;
+  background: rgba(37, 99, 235, 0.08);
+  border-color: #3b82f6;
+  color: #2563eb;
+  font-weight: 600;
 }
-.s-custom-row { display:flex; gap:8px; align-items:center; }
+.s-custom-row { display: flex; gap: 8px; align-items: center; }
 .s-btn-ghost {
-  padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600;
-  border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06);
-  color:#94a3b8; cursor:pointer; white-space:nowrap; transition:all .15s;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
 }
-.s-btn-ghost:hover { background:rgba(255,255,255,.1); color:#e2e8f0; }
+.s-btn-ghost:hover { background: #f8fafc; color: #334155; }
 
-/* Difficulty / Questions segmented control */
-.s-two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-@media(max-width:500px){ .s-two-col{ grid-template-columns:1fr; } }
+/* Difficulty / Questions */
+.s-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media(max-width:500px){ .s-two-col{ grid-template-columns: 1fr; } }
 
-.s-seg { display:flex; gap:4px; }
+.s-seg { display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 10px; }
 .s-seg-btn {
-  flex:1; padding:8px; border-radius:8px; font-size:13px; font-weight:500;
-  border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04);
-  color:#94a3b8; cursor:pointer; transition:all .15s;
+  flex: 1;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all .15s;
 }
-.s-seg-btn:hover { background:rgba(255,255,255,.08); color:#e2e8f0; }
+.s-seg-btn:hover { color: #334155; }
 .s-seg-btn-on {
-  background:rgba(59,130,246,.15); border-color:rgba(59,130,246,.4); color:#60a5fa;
+  background: #ffffff;
+  color: #2563eb;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
-.s-err { color:#f87171; font-size:13px; margin:4px 0 14px; }
+.s-err { color: #ef4444; font-size: 13px; margin: 4px 0 14px; }
 
 .s-start-btn {
-  width:100%; padding:15px; border-radius:12px; font-size:16px; font-weight:700;
-  background:linear-gradient(135deg,#2563eb,#6366f1); color:#fff; border:none;
-  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;
-  box-shadow:0 0 32px rgba(99,102,241,.35); transition:all .2s; margin-top:8px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6, #4f46e5);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.25);
+  transition: all .2s;
+  margin-top: 8px;
 }
-.s-start-btn:hover { box-shadow:0 0 48px rgba(99,102,241,.55); transform:translateY(-1px); }
-.s-footer-note { text-align:center; color:#475569; font-size:12px; margin:14px 0 0; }
+.s-start-btn:hover { box-shadow: 0 12px 30px rgba(79, 70, 229, 0.38); transform: translateY(-1px); }
+.s-footer-note { text-align: center; color: #94a3b8; font-size: 12px; margin: 14px 0 0; }
 
-.s-check-grid { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+.s-check-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 .s-check-row {
-  display:flex; align-items:flex-start; gap:10px; cursor:pointer;
-  padding:10px 12px; border-radius:10px; background:rgba(255,255,255,.03);
-  border:1px solid rgba(255,255,255,.08);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  padding: 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
 }
-.s-check-row input { margin-top:3px; accent-color:#3b82f6; }
-.s-check-row span { display:flex; flex-direction:column; gap:3px; font-size:13px; color:#cbd5e1; }
-.s-check-row small { font-size:11px; color:#64748b; font-weight:400; line-height:1.4; }
-.s-threshold-grid { display:flex; flex-direction:column; gap:8px; }
+.s-check-row input { margin-top: 4px; accent-color: #3b82f6; }
+.s-check-row span { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: #334155; }
+.s-check-row small { font-size: 11px; color: #64748b; font-weight: 400; line-height: 1.45; }
+.s-threshold-grid { display: flex; flex-direction: column; gap: 8px; }
 .s-threshold-row {
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
-  font-size:12px; color:#94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #64748b;
 }
-.s-threshold-input { width:72px; text-align:center; padding:6px 8px; }
+.s-threshold-input { width: 72px; text-align: center; padding: 6px 8px; background: #ffffff; border: 1px solid #cbd5e1; }
 .s-fs-gate {
-  margin:16px 0; padding:16px; border-radius:12px;
-  background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.25);
+  margin: 16px 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.2);
 }
-.s-fs-title { font-weight:700; color:#fbbf24; margin:0 0 6px; font-size:14px; }
-.s-fs-desc { font-size:12px; color:#94a3b8; margin:0 0 12px; line-height:1.5; }
-.s-fs-btn { width:100%; justify-content:center; }
-.s-start-btn:disabled { opacity:.45; cursor:not-allowed; transform:none; box-shadow:none; }
+.s-fs-title { font-weight: 700; color: #d97706; margin: 0 0 6px; font-size: 14px; }
+.s-fs-desc { font-size: 12px; color: #64748b; margin: 0 0 12px; line-height: 1.5; }
+.s-fs-btn { width: 100%; justify-content: center; }
+.s-start-btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   INTERVIEW ROOM
-══════════════════════════════════════════════════════════════════════════ */
+/* ── INTERVIEW ROOM ── */
 .ir-room {
-  display:flex; flex-direction:column; height:100vh; min-height:100vh;
-  background:linear-gradient(135deg, #020817 0%, #0d1526 100%);
-  overflow:hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+  overflow: hidden;
 }
 
 /* Top bar */
 .ir-topbar {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:14px 24px; border-bottom:1px solid rgba(255,255,255,.07);
-  background:rgba(2,8,23,.8); backdrop-filter:blur(12px);
-  flex-shrink:0; gap:16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+  gap: 16px;
+  z-index: 100;
 }
-.ir-logo {
-  display:flex; align-items:center; gap:8px;
-  font-size:15px; font-weight:700; color:#f1f5f9; white-space:nowrap;
+.ir-logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.ir-logo-dot {
-  width:8px; height:8px; border-radius:50%; background:#3b82f6;
-  box-shadow:0 0 10px rgba(59,130,246,.8); animation:ir-glow 2s ease-in-out infinite;
+.ir-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3b82f6, #4f46e5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
 }
-@keyframes ir-glow { 0%,100%{opacity:1} 50%{opacity:.4} }
+.ir-logo-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
 
-.ir-progress { display:flex; align-items:center; gap:6px; flex:1; justify-content:center; }
+.ir-progress { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; }
 .ir-pdot {
-  width:8px; height:8px; border-radius:50%;
-  background:rgba(255,255,255,.15); transition:all .3s;
+  width: 24px;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  transition: all .3s ease;
 }
-.ir-pdot-done { background:#3b82f6; }
-.ir-pdot-cur  { background:#6366f1; box-shadow:0 0 8px rgba(99,102,241,.7); transform:scale(1.3); }
-.ir-turn-label { font-size:12px; color:#64748b; margin-left:6px; white-space:nowrap; }
-
-.ir-topbar-right { display:flex; align-items:center; gap:12px; }
-.ir-timer { font-size:14px; font-weight:600; color:#60a5fa; font-variant-numeric:tabular-nums; }
-.ir-exit-btn {
-  padding:7px 16px; border-radius:8px; font-size:12px; font-weight:600;
-  border:1px solid rgba(239,68,68,.3); background:rgba(239,68,68,.1);
-  color:#f87171; cursor:pointer; transition:all .15s; white-space:nowrap;
+.ir-pdot-done { background: #3b82f6; }
+.ir-pdot-cur {
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+  width: 36px;
 }
-.ir-exit-btn:hover { background:rgba(239,68,68,.2); color:#fca5a5; }
 
-.ir-viol-badge {
-  padding:5px 12px; border-radius:99px; font-size:11px; font-weight:700;
-  border:1px solid rgba(245,158,11,.35); background:rgba(245,158,11,.12);
-  color:#fbbf24; cursor:pointer; display:flex; align-items:center; gap:6px;
+.ir-topbar-right { display: flex; align-items: center; gap: 10px; }
+
+/* Premium Badges */
+.ir-viol-badge-premium {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+.ir-viol-badge-clean {
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+.ir-viol-badge-clean:hover {
+  background: rgba(16, 185, 129, 0.1);
 }
 .ir-viol-badge-alert {
-  border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.15); color:#f87171;
-  animation:ir-viol-pulse 1.5s ease-in-out infinite;
+  background: rgba(239, 68, 68, 0.06);
+  border-color: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+  animation: badge-pulse 1.8s infinite alternate;
 }
-.ir-viol-tier {
-  background:rgba(0,0,0,.3); padding:1px 6px; border-radius:99px; font-size:10px;
+@keyframes badge-pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.03); }
 }
-@keyframes ir-viol-pulse { 0%,100%{opacity:1} 50%{opacity:.65} }
-.ir-fs-warn { font-size:11px; color:#f87171; font-weight:600; }
+
+.ir-timer-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 99px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ir-exit-btn-premium {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 99px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ir-exit-btn-premium:hover {
+  background: #ef4444;
+  color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.ir-fs-warn { font-size: 11px; color: #ef4444; font-weight: 600; }
 
 .ir-sec-banner {
-  display:flex; align-items:flex-start; gap:12px; padding:12px 24px;
-  border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
 }
-.ir-sec-tier-1 { background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.25); }
-.ir-sec-tier-2 { background:rgba(245,158,11,.15); border-color:rgba(245,158,11,.3); }
-.ir-sec-tier-3 { background:rgba(239,68,68,.18); border-color:rgba(239,68,68,.35); }
-.ir-sec-banner strong { display:block; font-size:13px; margin-bottom:2px; }
-.ir-sec-banner p { margin:0; font-size:12px; color:#cbd5e1; line-height:1.45; }
-.ir-sec-icon { font-size:18px; flex-shrink:0; margin-top:2px; }
+.ir-sec-tier-1 { background: rgba(59, 130, 246, 0.05); border-color: rgba(59, 130, 246, 0.1); }
+.ir-sec-tier-2 { background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.15); }
+.ir-sec-tier-3 { background: rgba(239, 68, 68, 0.05); border-color: rgba(239, 68, 68, 0.18); }
+.ir-sec-banner strong { display: block; font-size: 13px; margin-bottom: 2px; }
+.ir-sec-banner p { margin: 0; font-size: 12px; color: #475569; line-height: 1.45; }
 
 .ir-fs-overlay {
-  position:fixed; inset:0; z-index:10000; background:rgba(2,8,23,.85);
-  display:flex; align-items:center; justify-content:center; padding:24px;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 }
 .ir-fs-modal {
-  max-width:420px; width:100%; padding:28px; border-radius:16px;
-  background:#0f172a; border:1px solid rgba(239,68,68,.35); text-align:center;
+  max-width: 420px;
+  width: 100%;
+  padding: 32px;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid #fca5a5;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.1);
 }
-.ir-fs-modal h4 { margin:0 0 10px; color:#f87171; }
-.ir-fs-modal p { font-size:13px; color:#94a3b8; margin:0 0 18px; line-height:1.55; }
+.ir-fs-modal h4 { margin: 0 0 10px; color: #dc2626; font-size: 18px; font-weight: 700; }
+.ir-fs-modal p { font-size: 13px; color: #64748b; margin: 0 0 20px; line-height: 1.55; }
 
 .ir-proctor-panel {
-  position:fixed; top:60px; right:16px; width:340px; max-height:calc(100vh - 80px);
-  z-index:9998; overflow:hidden; display:flex; flex-direction:column;
-  background:rgba(15,23,42,.97); border:1px solid rgba(255,255,255,.12);
-  border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.5);
+  position: fixed;
+  top: 70px;
+  right: 16px;
+  width: 340px;
+  max-height: calc(100vh - 90px);
+  z-index: 9998;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.08);
 }
 .ir-proctor-head {
-  display:flex; justify-content:space-between; align-items:flex-start;
-  padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
 }
-.ir-proctor-head strong { font-size:14px; display:block; }
-.ir-proctor-head p { margin:2px 0 0; font-size:11px; color:#64748b; }
+.ir-proctor-head strong { font-size: 14px; color: #0f172a; display: block; }
+.ir-proctor-head p { margin: 2px 0 0; font-size: 11px; color: #64748b; }
 .ir-proctor-close {
-  background:none; border:none; color:#94a3b8; cursor:pointer; font-size:16px; padding:4px;
+  background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 16px; padding: 4px;
 }
 .ir-proctor-stats {
-  display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:12px 16px;
-  border-bottom:1px solid rgba(255,255,255,.06);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
 }
 .ir-proctor-stat {
-  text-align:center; padding:8px; border-radius:8px; background:rgba(255,255,255,.04);
+  text-align: center; padding: 8px; border-radius: 8px; background: #f8fafc; border: 1px solid #f1f5f9;
 }
-.ir-proctor-stat strong { display:block; font-size:18px; color:#60a5fa; }
-.ir-proctor-stat span { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.ir-proctor-stat strong { display: block; font-size: 18px; color: #2563eb; }
+.ir-proctor-stat span { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+
 .ir-proctor-thresholds {
-  display:flex; flex-direction:column; gap:4px; padding:10px 16px;
-  font-size:10px; color:#64748b; border-bottom:1px solid rgba(255,255,255,.06);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 16px;
+  font-size: 10px;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
 }
-.ir-proctor-log { flex:1; overflow-y:auto; padding:12px 16px; }
-.ir-proctor-log-title { font-size:12px; font-weight:700; color:#94a3b8; margin:0 0 10px; }
+.ir-proctor-log { flex: 1; overflow-y: auto; padding: 12px 16px; }
+.ir-proctor-log-title { font-size: 12px; font-weight: 700; color: #334155; margin: 0 0 10px; }
 .ir-proctor-event {
-  padding:8px 10px; margin-bottom:6px; border-radius:8px; font-size:11px;
-  background:rgba(255,255,255,.03); border-left:3px solid rgba(148,163,184,.4);
+  padding: 8px 10px; margin-bottom: 6px; border-radius: 8px; font-size: 11px;
+  background: #f8fafc; border-left: 3px solid #cbd5e1; border: 1px solid #e2e8f0; border-left-width: 3px;
 }
-.ir-proctor-event.ir-sev-high { border-left-color:#ef4444; }
-.ir-proctor-event.ir-sev-medium { border-left-color:#f59e0b; }
-.ir-proctor-event.ir-sev-low { border-left-color:#64748b; }
-.ir-proctor-event strong { display:block; color:#e2e8f0; margin-bottom:2px; }
-.ir-proctor-event p { margin:0; color:#94a3b8; line-height:1.4; }
-.ir-proctor-time { font-size:10px; color:#475569; display:block; margin-bottom:2px; }
+.ir-proctor-event.ir-sev-high { border-left-color: #ef4444; }
+.ir-proctor-event.ir-sev-medium { border-left-color: #f59e0b; }
+.ir-proctor-event.ir-sev-low { border-left-color: #64748b; }
+.ir-proctor-event strong { display: block; color: #334155; margin-bottom: 2px; }
+.ir-proctor-event p { margin: 0; color: #64748b; line-height: 1.4; }
+.ir-proctor-time { font-size: 10px; color: #94a3b8; display: block; margin-bottom: 2px; }
 
 .ir-integrity-card {
-  margin:16px 0; padding:16px; border-radius:12px;
-  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+  margin: 16px 0; padding: 16px; border-radius: 12px;
+  background: #ffffff; border: 1px solid #e2e8f0;
 }
-.ir-integrity-main { border-color:rgba(99,102,241,.25); }
-.ir-integrity-log { max-height:280px; }
+.ir-integrity-main { border-color: #cbd5e1; }
+.ir-integrity-log { max-height: 280px; }
 
-.ir-coding-area { display:flex; flex-direction:column; gap:12px; height:100%; }
-.ir-coding-hint { color:#64748b; font-size:11px; display:block; margin-top:4px; }
-.ir-coding-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.ir-coding-area { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.ir-coding-hint { color: #64748b; font-size: 11px; display: block; margin-top: 4px; }
+.ir-coding-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .ir-coding-select {
-  padding:8px 12px; border-radius:8px; background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.12); color:#e2e8f0; font-size:13px;
+  padding: 8px 12px; border-radius: 8px; background: #ffffff;
+  border: 1px solid #cbd5e1; color: #334155; font-size: 13px;
 }
-.ir-coding-autosave { font-size:11px; color:#22c55e; }
+.ir-coding-autosave { font-size: 11px; color: #16a34a; font-weight: 500; }
 .ir-code-editor {
-  flex:1; min-height:220px; padding:14px; border-radius:10px;
-  background:#0d1117; border:1px solid rgba(255,255,255,.12); color:#e2e8f0;
-  font-family:'Consolas','Monaco',monospace; font-size:13px; line-height:1.55;
-  resize:vertical; outline:none;
+  flex: 1; min-height: 220px; padding: 14px; border-radius: 10px;
+  background: #0f172a; border: 1px solid #334155; color: #f8fafc;
+  font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.55;
+  resize: vertical; outline: none;
 }
-.ir-code-editor:focus { border-color:rgba(59,130,246,.45); }
 .ir-coding-input {
-  padding:10px 12px; border-radius:8px; background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.1); color:#e2e8f0; font-size:12px;
-  font-family:monospace;
+  padding: 10px 12px; border-radius: 8px; background: #ffffff;
+  border: 1px solid #cbd5e1; color: #334155; font-size: 12px;
 }
 .ir-code-result {
-  padding:12px; border-radius:10px; background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.1); font-size:12px;
+  padding: 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #cbd5e1; font-size: 12px;
 }
-.ir-code-pass { border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.08); }
-.ir-test-row { padding:3px 0; color:#94a3b8; }
-.ir-test-pass { color:#22c55e; }
-.ir-test-fail { color:#f87171; }
-.ir-exec-history { margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,.08); }
-.ir-exec-row { font-size:11px; color:#64748b; padding:2px 0; }
-.ir-coding-report-row {
-  padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06);
-  display:flex; flex-direction:column; gap:2px; font-size:12px;
-}
-.ir-coding-report-row small { color:#64748b; }
+.ir-code-pass { border-color: rgba(34,197,94,.35); background: rgba(34,197,94,.04); }
 
-/* Main split */
+/* Main Split layout */
 .ir-main {
-  display:flex; flex:1; overflow:hidden;
-  min-height:0; /* allow flex children to shrink */
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 
-/* ─ Avatar / Video column — HALF SCREEN LEFT */
+/* Avatar col - left side (38% width) */
 .ir-avatar-col {
-  width:46%;
-  flex-shrink:0;
-  display:flex;
-  flex-direction:column;
-  align-items:stretch;
-  justify-content:flex-start;
-  padding:16px 20px;
-  gap:14px;
-  overflow-y:auto;
-  border-right:1px solid rgba(255,255,255,.07);
-  background:rgba(2,5,16,.9);
-}
-@media(max-width:860px){
-  .ir-main { flex-direction:column; }
-  .ir-avatar-col { width:100%; padding:14px 16px; border-right:none;
-                   border-bottom:1px solid rgba(255,255,255,.06);
-                   flex-direction:row; justify-content:flex-start; }
-  .ir-video-card, .ir-camera-card { max-width:50%; }
-}
-@media(max-width:620px){
-  .ir-avatar-col { flex-direction:column; }
-  .ir-video-card, .ir-camera-card { max-width:100%; }
+  width: 38%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  padding: 28px 20px;
+  border-right: 1px solid #e2e8f0;
+  background: #ffffff;
+  overflow-y: auto;
 }
 
-/* Video card — full height portrait, fills the left half */
-.ir-video-card {
-  width:100%;
-  max-width:100%;
-  border-radius:20px;
-  overflow:hidden;
-  border:2px solid rgba(255,255,255,.1);
-  background:#0a0f1e;
-  transition:border-color .4s, box-shadow .4s;
-  box-shadow:0 12px 48px rgba(0,0,0,.6);
+/* Avatar container layout matching screenshot */
+.ir-avatar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: 15px;
 }
-.ir-video-speaking {
-  border-color:#6366f1;
-  box-shadow:0 0 0 3px rgba(99,102,241,.25), 0 8px 40px rgba(99,102,241,.2);
-  animation:vc-speak-glow 1.4s ease-in-out infinite;
+.ir-avatar-circle-wrap {
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
 }
-.ir-video-listening {
-  border-color:#22c55e;
-  box-shadow:0 0 0 3px rgba(34,197,94,.2), 0 8px 32px rgba(0,0,0,.4);
+.ir-avatar-circle-img {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #ffffff;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  position: relative;
+  z-index: 10;
 }
-.ir-video-thinking {
-  border-color:#3b82f6;
-  box-shadow:0 0 0 2px rgba(59,130,246,.15), 0 8px 32px rgba(0,0,0,.4);
-}
-@keyframes vc-speak-glow {
-  0%,100% { box-shadow:0 0 0 3px rgba(99,102,241,.25), 0 8px 40px rgba(99,102,241,.2); }
-  50%      { box-shadow:0 0 0 6px rgba(99,102,241,.45), 0 8px 50px rgba(99,102,241,.35); }
-}
-
-/* Face wrapper — proper portrait aspect ratio */
-.ir-face-wrap {
-  position:relative;
-  width:100%;
-  padding-bottom:110%; /* 4:5 portrait ratio */
-  overflow:hidden;
-  background:#0d1117;
-}
-
-/* Full face image (base layer) */
-.ir-face-img {
-  position:absolute;
-  top:0; left:0; width:100%; height:100%;
-  object-fit:cover; object-position:center top;
-  display:block; user-select:none;
-  transform-origin:50% 42%;
-  will-change:transform, filter;
+.ir-avatar-circle-glow {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: transparent;
+  border: 4px solid transparent;
+  transition: all 0.3s ease;
+  z-index: 1;
 }
 
-/* HeyGen live video stream */
-.ir-heygen-video {
-  position:absolute;
-  top:0; left:0; width:100%; height:100%;
-  object-fit:cover; object-position:center top;
-  display:block; background:#050c1a;
+/* Glow colors depending on interviewer status */
+.ir-avatar-circle-wrap.speaking .ir-avatar-circle-glow {
+  border-color: #6366f1;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+  animation: circle-pulse-glow 1.5s infinite alternate;
+}
+.ir-avatar-circle-wrap.listening .ir-avatar-circle-glow {
+  border-color: #22c55e;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+}
+.ir-avatar-circle-wrap.thinking .ir-avatar-circle-glow {
+  border-color: #3b82f6;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
 }
 
-/* Loading / error overlay on top of video */
-.ir-hg-loading {
-  position:absolute; top:0; left:0; width:100%; height:100%;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  background:rgba(5,12,26,.85); gap:14px; z-index:6;
-  font-size:13px; color:#94a3b8; text-align:center; padding:12px;
+@keyframes circle-pulse-glow {
+  from { transform: scale(0.98); opacity: 0.8; }
+  to { transform: scale(1.02); opacity: 1; }
 }
 
-/* ─── AnimatedAvatar CSS ──────────────────────────────────────────────────── */
+.ir-avatar-name {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 16px 0 6px;
+}
+.ir-avatar-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+.ir-avatar-status.status-speaking { color: #6366f1; }
+.ir-avatar-status.status-listening { color: #16a34a; }
+.ir-avatar-status.status-thinking { color: #2563eb; }
 
-/* Animated ring that pulses behind the avatar */
-.av-ring-outer {
-  position:absolute;
-  top:50%; left:50%;
-  transform:translate(-50%,-50%);
-  width:70%; padding-bottom:70%;
-  border-radius:50%;
-  z-index:1; pointer-events:none;
-  transition:all .4s;
+/* Camera feed - prominent candidate preview */
+.ir-camera-premium {
+  width: 100%;
+  max-width: 280px;
+  margin-top: 16px;
 }
-.av-ring-speaking {
-  box-shadow:0 0 0 8px rgba(99,102,241,.25), 0 0 60px rgba(99,102,241,.35);
-  animation:av-ring-pulse 1.2s ease-in-out infinite;
+.ir-camera-you-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 6px;
 }
-.av-ring-listening {
-  box-shadow:0 0 0 8px rgba(34,197,94,.2), 0 0 40px rgba(34,197,94,.25);
-  animation:av-ring-pulse-green 1.4s ease-in-out infinite;
+.ir-camera-you-dot {
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: dot-pulse 1.2s infinite alternate;
+  flex-shrink: 0;
 }
-@keyframes av-ring-pulse {
-  0%,100% { box-shadow:0 0 0 8px rgba(99,102,241,.25), 0 0 60px rgba(99,102,241,.35); }
-  50%      { box-shadow:0 0 0 18px rgba(99,102,241,.1), 0 0 80px rgba(99,102,241,.5); }
+.ir-camera-frame-premium {
+  width: 100%;
+  aspect-ratio: 4/3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0f172a;
+  position: relative;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  border: 2px solid rgba(99, 102, 241, 0.3);
 }
-@keyframes av-ring-pulse-green {
-  0%,100% { box-shadow:0 0 0 8px rgba(34,197,94,.2), 0 0 40px rgba(34,197,94,.25); }
-  50%      { box-shadow:0 0 0 16px rgba(34,197,94,.08), 0 0 60px rgba(34,197,94,.35); }
+.ir-camera-video-premium {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  display: block;
 }
-
-/* Talking animation — subtle scale breathe on the portrait */
-.av-img-idle { animation:av-idle-breathe 5.5s ease-in-out infinite; }
-.av-img-listening { animation:av-listen-lean 3.8s ease-in-out infinite; }
-.av-img-thinking {
-  filter:saturate(.92) brightness(.92);
-  animation:av-thinking-drift 3s ease-in-out infinite;
+.ir-camera-empty-premium {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
 }
-.av-img-talking { animation:av-talking .52s ease-in-out infinite alternate; }
-@keyframes av-idle-breathe {
-  0%,100% { transform:scale(1) translateY(0); }
-  45%     { transform:scale(1.012) translateY(-2px); }
-  70%     { transform:scale(1.006) translateX(1px); }
+.ir-camera-starting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
 }
-@keyframes av-listen-lean {
-  0%,100% { transform:scale(1.012) translateX(0) rotate(0deg); }
-  50%     { transform:scale(1.018) translateX(-3px) rotate(-.45deg); }
+.ir-camera-blocked-icon {
+  font-size: 28px;
 }
-@keyframes av-thinking-drift {
-  0%,100% { transform:scale(1.006) translateY(0); }
-  50%     { transform:scale(1.016) translateY(-3px); }
+.ir-camera-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid #334155;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
-@keyframes av-talking {
-  from { transform:scale(1.012) translateY(0); }
-  to   { transform:scale(1.028) translateY(-3px); }
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
-
-/* Lightweight expression layer for blink and speech movement */
-.av-life-layer {
-  position:absolute;
-  inset:0;
-  z-index:7;
-  pointer-events:none;
-  opacity:.85;
+.ir-camera-no-face {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(239, 68, 68, 0.85);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  z-index: 8;
+  white-space: nowrap;
 }
-.av-eye {
-  position:absolute;
-  top:31%;
-  width:8%;
-  height:2px;
-  border-radius:999px;
-  background:rgba(15,23,42,.72);
-  opacity:.28;
-  transform-origin:center;
-  animation:av-blink 5.8s ease-in-out infinite;
-}
-.av-eye-left { left:37%; }
-.av-eye-right { right:36%; animation-delay:.08s; }
-@keyframes av-blink {
-  0%, 92%, 100% { transform:scaleY(.35); opacity:.18; }
-  94%, 96%     { transform:scaleY(2.8); opacity:.48; }
-}
-.av-mouth {
-  position:absolute;
-  left:50%;
-  top:58%;
-  width:16%;
-  height:18px;
-  transform:translateX(-50%);
-  display:flex;
-  align-items:flex-end;
-  justify-content:center;
-  gap:3px;
-  opacity:0;
-}
-.av-mouth span {
-  width:22%;
-  height:5px;
-  border-radius:999px;
-  background:rgba(15,23,42,.78);
-  box-shadow:0 0 10px rgba(255,255,255,.12);
-  animation:av-mouth-talk .34s ease-in-out infinite alternate;
-}
-.av-mouth span:nth-child(2) { animation-delay:.08s; }
-.av-mouth span:nth-child(3) { animation-delay:.16s; }
-.av-life-speaking .av-mouth { opacity:.72; }
-.av-life-listening .av-eye {
-  opacity:.35;
-  animation-duration:4.4s;
-}
-@keyframes av-mouth-talk {
-  from { height:4px; transform:translateY(0); }
-  to   { height:15px; transform:translateY(2px); }
-}
-
-/* Speaking wave bars overlay (bottom of avatar) */
-.av-wave-overlay {
-  position:absolute;
-  bottom:52px; left:50%;
-  transform:translateX(-50%);
-  display:flex; align-items:flex-end; gap:3px;
-  z-index:8; pointer-events:none;
-  height:32px;
-}
-.av-wave-bar {
-  display:inline-block;
-  width:4px; border-radius:3px;
-  background:linear-gradient(to top, #6366f1, #a78bfa);
-  animation:av-wave-dance .6s ease-in-out infinite alternate;
-  box-shadow:0 0 6px rgba(99,102,241,.6);
-}
-@keyframes av-wave-dance {
-  0%   { height:4px;  opacity:.7; }
-  100% { height:28px; opacity:1; }
+.ir-camera-status-text {
+  margin: 6px 0 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.4;
 }
 
-/* Thinking spinner overlay */
-.av-thinking-overlay {
-  position:absolute;
-  top:50%; left:50%;
-  transform:translate(-50%,-50%);
-  z-index:7; pointer-events:none;
+/* Camera overlays */
+.ir-camera-corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #6366f1;
+  z-index: 10;
 }
-.av-think-ring {
-  width:56px; height:56px;
-  border-radius:50%;
-  border:3px solid rgba(59,130,246,.15);
-  border-top-color:#3b82f6;
-  animation:s-spin 1s linear infinite;
+.corner-tl { top: 7px; left: 7px; border-right: none; border-bottom: none; }
+.corner-tr { top: 7px; right: 7px; border-left: none; border-bottom: none; }
+.corner-bl { bottom: 7px; left: 7px; border-right: none; border-top: none; }
+.corner-br { bottom: 7px; right: 7px; border-left: none; border-top: none; }
+
+.ir-camera-badge-top {
+  position: absolute;
+  top: 7px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: white;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  z-index: 5;
+}
+.ir-camera-badge-dot {
+  width: 5px;
+  height: 5px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: dot-pulse 1s infinite alternate;
+}
+@keyframes dot-pulse {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
 }
 
-/* Green dot for listening state */
-.ir-np-dot-listen {
-  background:#22c55e;
-  box-shadow:0 0 6px rgba(34,197,94,.8);
-  animation:ir-blink 1.3s ease-in-out infinite;
+.ir-camera-badge-bottom {
+  position: absolute;
+  bottom: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: white;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  z-index: 5;
+  white-space: nowrap;
 }
 
-
-
-/* Video overlay: nameplate, speaking badge */
-.ir-video-overlay {
-  position:absolute;
-  bottom:0; left:0; right:0;
-  padding:8px 10px;
-  background:linear-gradient(transparent, rgba(0,0,0,.75));
-  display:flex; align-items:flex-end; justify-content:space-between;
-  z-index:10;
-}
-.ir-nameplate {
-  display:flex; align-items:center; gap:6px;
-  font-size:12px; font-weight:700; color:#fff;
-  text-shadow:0 1px 4px rgba(0,0,0,.8);
-}
-.ir-np-dot {
-  width:8px; height:8px; border-radius:50%; background:#64748b; flex-shrink:0;
-}
-.ir-np-dot-live {
-  background:#22c55e;
-  box-shadow:0 0 6px rgba(34,197,94,.8);
-  animation:ir-blink 1s ease-in-out infinite;
-}
-
-.ir-speaking-badge,
-.ir-thinking-badge,
-.ir-listening-badge {
-  display:flex; align-items:center; gap:5px;
-  font-size:10px; font-weight:600; padding:3px 8px;
-  border-radius:99px;
-}
-.ir-speaking-badge  { background:rgba(99,102,241,.7); color:#e0e7ff; }
-.ir-thinking-badge  { background:rgba(59,130,246,.6);  color:#dbeafe; }
-.ir-listening-badge { background:rgba(34,197,94,.6);   color:#d1fae5; }
-
-/* Role tag below the card */
-.ir-role-tag {
-  font-size:11px; color:#94a3b8; font-weight:500; text-align:center;
-  padding:6px 10px; background:rgba(0,0,0,.6);
-  border-top:1px solid rgba(255,255,255,.06); letter-spacing:.02em;
-}
-
-/* ─ Content panel — right half */
-.ir-camera-card {
-  width:100%; max-width:100%;
-  border:1px solid rgba(255,255,255,.1);
-  border-radius:14px; overflow:hidden;
-  background:rgba(15,23,42,.9);
-  flex:1;
-}
-.ir-camera-frame {
-  position:relative; width:100%; aspect-ratio:4/3;
-  background:#050a14; overflow:hidden;
-  min-height:200px;
-}
-.ir-camera-video {
-  width:100%; height:100%; object-fit:cover;
-  transform:scaleX(-1); display:block;
-}
-.ir-camera-empty {
-  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  background:rgba(2,6,23,.9); color:#94a3b8; font-size:13px;
-}
-.ir-camera-overlay {
-  position:absolute; left:10px; right:10px; bottom:10px;
-  display:flex; align-items:center; gap:7px;
-  background:rgba(2,6,23,.78); border:1px solid rgba(255,255,255,.09);
-  border-radius:999px; color:#e2e8f0; padding:6px 10px; font-size:12px;
-  text-transform:capitalize; backdrop-filter:blur(8px);
-}
-.ir-camera-overlay strong { margin-left:auto; color:#93c5fd; }
-.ir-camera-dot {
-  width:8px; height:8px; border-radius:50%; background:#64748b; flex-shrink:0;
-}
-.ir-camera-dot-on {
-  background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,.8);
-}
-.ir-camera-meta {
-  display:flex; justify-content:space-between; gap:10px; align-items:center;
-  padding:9px 11px; font-size:12px; color:#e2e8f0;
-}
-.ir-camera-meta small { color:#64748b; text-align:right; }
-
+/* Right Content Col - 62% width */
 .ir-content {
-  flex:1;
-  min-width:0;
-  overflow-y:auto;
-  padding:32px 36px;
-  display:flex;
-  flex-direction:column;
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
-@media(max-width:700px){ .ir-content{ padding:16px; } }
 
-/* Thinking / Submitting */
-.ir-thinking, .ir-submitting {
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  flex:1; gap:18px;
+/* Inquiry Card - light eye catching theme */
+.ir-q-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
 }
-.ir-dots { display:flex; gap:8px; }
+.ir-q-card-speaking {
+  border-color: rgba(99, 102, 241, 0.15);
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.03);
+}
+.ir-q-card-recording {
+  border-color: rgba(34, 197, 94, 0.15);
+}
+
+.ir-session-label { margin-bottom: 12px; }
+.ir-session-phase {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.12);
+  border-radius: 99px;
+  padding: 4px 14px;
+  display: inline-block;
+}
+
+.ir-q-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: #94a3b8;
+  display: block;
+  margin-bottom: 14px;
+}
+.ir-q-text {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 0 0 20px;
+  color: #0f172a;
+}
+
+.ir-topic-tags-premium {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ir-topic-tag-premium {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Recording Panel Overhaul matching screenshot */
+.ir-rec-panel-premium {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 24px;
+  padding: 24px 32px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.ir-rec-main-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ir-rec-mic-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #3b82f6;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ir-rec-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+.ir-rec-status-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.ir-rec-timer-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ir-rec-dot-active {
+  width: 6px;
+  height: 6px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: dot-pulse 1s infinite alternate;
+}
+
+.ir-rec-amplitude-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+  width: 40px;
+  justify-content: flex-end;
+}
+.ir-amplitude-bar {
+  width: 3px;
+  background: #3b82f6;
+  border-radius: 1.5px;
+  transition: height 0.1s ease;
+}
+
+/* Horizontal Waveform */
+.ir-rec-waveform-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0 16px;
+  gap: 2px;
+}
+.ir-waveform-stick {
+  flex: 1;
+  background: #cbd5e1;
+  border-radius: 1px;
+  max-width: 4px;
+  min-height: 4px;
+  transition: height 0.15s ease;
+}
+
+.ir-btn-row-premium {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 5px;
+}
+.ir-btn-rerecord-premium {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ir-btn-rerecord-premium:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.ir-btn-submit-premium {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 32px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  transition: all 0.2s;
+}
+.ir-btn-submit-premium:hover {
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+.ir-thinking {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 18px;
+}
+.ir-dots { display: flex; gap: 8px; }
 .ir-dots span {
-  width:12px; height:12px; border-radius:50%; background:#3b82f6;
-  animation:ir-bounce 1.2s ease-in-out infinite;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3b82f6;
+  animation: ir-bounce 1.2s ease-in-out infinite;
 }
 .ir-dots span:nth-child(2){ animation-delay:.2s; background:#6366f1; }
 .ir-dots span:nth-child(3){ animation-delay:.4s; background:#a78bfa; }
 @keyframes ir-bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-14px)} }
-.ir-dim { color:#64748b; font-size:14px; margin:0; }
+.ir-dim { color: #64748b; font-size: 14px; margin: 0; }
 
-/* Question cards */
-/* Question cards */
-.ir-q-card {
-  background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(99,102,241,.05));
-  border:1px solid rgba(59,130,246,.3);
-  border-left:4px solid #3b82f6;
-  border-radius:16px; padding:28px 30px;
-  max-width:680px;
-  box-shadow:0 4px 24px rgba(59,130,246,.1);
-  position:relative; overflow:hidden;
+/* Report & done styles */
+.ir-report {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 680px;
 }
-.ir-q-card::before {
-  content:''; position:absolute; top:-40px; right:-40px;
-  width:120px; height:120px; border-radius:50%;
-  background:rgba(99,102,241,.06); pointer-events:none;
-}
-.ir-q-card-speaking {
-  background:linear-gradient(135deg,rgba(167,139,250,.1),rgba(99,102,241,.06));
-  border-color:rgba(167,139,250,.4);
-  border-left-color:#6366f1;
-  box-shadow:0 4px 32px rgba(99,102,241,.15);
-}
-.ir-q-label {
-  font-size:10px; font-weight:800; text-transform:uppercase;
-  letter-spacing:.1em; color:#818cf8; display:flex;
-  align-items:center; gap:6px; margin-bottom:14px;
-}
-.ir-q-label::before {
-  content:''; display:inline-block; width:6px; height:6px;
-  border-radius:50%; background:#6366f1;
-  box-shadow:0 0 8px rgba(99,102,241,.8);
-  animation:ir-blink 1.4s ease-in-out infinite;
-}
-.ir-q-text {
-  font-size:19px; font-weight:500; line-height:1.7;
-  margin:0; color:#f1f5f9;
-  text-shadow:0 1px 2px rgba(0,0,0,.3);
-}
-
-/* Mini question reminder (in recording phase) */
-.ir-q-mini {
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.1);
-  border-left:3px solid #6366f1;
-  border-radius:12px; padding:14px 18px;
-}
-.ir-q-mini-label {
-  font-size:10px; font-weight:800; text-transform:uppercase;
-  letter-spacing:.08em; color:#6366f1; display:block; margin-bottom:6px;
-}
-.ir-q-mini-text {
-  font-size:15px; color:#cbd5e1; margin:0; line-height:1.55; font-weight:400;
-}
-
-/* Answer area */
-.ir-answer-area { display:flex; flex-direction:column; gap:14px; max-width:680px; }
-.ir-q-mini {
-  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
-  border-radius:10px; padding:12px 16px;
-}
-.ir-q-mini-label { font-size:10px; font-weight:700; text-transform:uppercase;
-                   letter-spacing:.05em; color:#64748b; display:block; margin-bottom:5px; }
-.ir-q-mini-text  { font-size:14px; color:#cbd5e1; margin:0; line-height:1.5; }
-
-.ir-rec-box {
-  background:rgba(34,197,94,.04); border:1px solid rgba(34,197,94,.2);
-  border-radius:14px; padding:22px;
-}
-.ir-rec-header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
-.ir-rec-dot {
-  width:12px; height:12px; border-radius:50%; background:#ef4444; flex-shrink:0;
-  box-shadow:0 0 8px rgba(239,68,68,.7); animation:ir-blink 1s ease-in-out infinite;
-}
-@keyframes ir-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
-.ir-rec-label { font-size:14px; font-weight:600; color:#34d399; }
-
-.ir-speak-area { margin-bottom:14px; }
-.ir-speak-hint { font-size:14px; color:#64748b; line-height:1.65; margin:0; }
-.ir-err { color:#f87171; font-size:13px; margin:0 0 10px; }
-
-.ir-btn-row { display:flex; gap:10px; flex-wrap:wrap; }
-.ir-btn {
-  padding:12px 24px; border-radius:10px; font-size:14px; font-weight:600;
-  cursor:pointer; border:none; transition:all .18s; outline:none;
-}
-.ir-btn-submit {
-  background:linear-gradient(135deg,#2563eb,#6366f1); color:#fff;
-  box-shadow:0 0 20px rgba(99,102,241,.3);
-}
-.ir-btn-submit:hover { box-shadow:0 0 32px rgba(99,102,241,.55); transform:translateY(-1px); }
-.ir-btn-ghost {
-  background:rgba(255,255,255,.07); color:#94a3b8;
-  border:1px solid rgba(255,255,255,.12);
-}
-.ir-btn-ghost:hover { background:rgba(255,255,255,.12); color:#e2e8f0; }
-.ir-btn-full { width:100%; margin-top:8px; }
-
-/* Report */
-.ir-report { display:flex; flex-direction:column; gap:14px; max-width:680px; }
 .ir-report-hero {
-  background:rgba(34,197,94,.06); border:1px solid rgba(34,197,94,.2);
-  border-radius:14px; padding:22px;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 16px;
+  padding: 24px;
 }
-.ir-report-title { font-size:20px; font-weight:700; color:#34d399; margin:0 0 8px; }
-.ir-report-sum   { color:#94a3b8; font-size:14px; line-height:1.65; margin:0; }
+.ir-report-title { font-size: 20px; font-weight: 800; color: #059669; margin: 0 0 8px; }
+.ir-report-sum { color: #475569; font-size: 14px; line-height: 1.65; margin: 0; }
 
-.ir-score-row { display:flex; flex-wrap:wrap; gap:10px; }
+.ir-score-row { display: flex; flex-wrap: wrap; gap: 10px; }
 .ir-score-card {
-  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
-  border-radius:12px; padding:14px 16px; text-align:center; min-width:90px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+  min-width: 90px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.01);
 }
-.ir-score-big { padding:18px 20px; }
-.ir-score-num { font-size:28px; font-weight:800; margin:0 0 4px; }
-.ir-score-big .ir-score-num { font-size:42px; }
-.ir-score-lbl { font-size:10px; color:#64748b; text-transform:capitalize; margin:0; }
+.ir-score-big { padding: 18px 20px; border-color: #cbd5e1; }
+.ir-score-num { font-size: 28px; font-weight: 800; margin: 0 0 4px; }
+.ir-score-big .ir-score-num { font-size: 42px; }
+.ir-score-lbl { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
 
-.ir-fb-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.ir-fb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media(max-width:500px){ .ir-fb-grid{ grid-template-columns:1fr; } }
-.ir-fb-card  { border-radius:12px; padding:16px 18px; border:1px solid; }
-.ir-fb-green { background:rgba(34,197,94,.05); border-color:rgba(34,197,94,.2); }
-.ir-fb-amber { background:rgba(245,158,11,.05); border-color:rgba(245,158,11,.2); }
-.ir-fb-head  { font-weight:700; font-size:13px; margin:0 0 10px; }
-.ir-fb-green .ir-fb-head { color:#34d399; }
-.ir-fb-amber .ir-fb-head { color:#f59e0b; }
-.ir-fb-item  { font-size:13px; color:#94a3b8; margin:0 0 5px; line-height:1.5; }
+.ir-fb-card { border-radius: 12px; padding: 16px 18px; border: 1px solid; }
+.ir-fb-green { background: rgba(16, 185, 129, 0.04); border-color: rgba(16, 185, 129, 0.15); }
+.ir-fb-amber { background: rgba(245, 158, 11, 0.04); border-color: rgba(245, 158, 11, 0.15); }
+.ir-fb-head { font-weight: 700; font-size: 13px; margin: 0 0 10px; }
+.ir-fb-green .ir-fb-head { color: #059669; }
+.ir-fb-amber .ir-fb-head { color: #d97706; }
+.ir-fb-item { font-size: 13px; color: #475569; margin: 0 0 5px; line-height: 1.5; }
 
 .ir-delivery {
-  background:rgba(59,130,246,.04); border:1px solid rgba(59,130,246,.16);
-  border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:14px;
+  background: rgba(59, 130, 246, 0.03);
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 .ir-delivery-kicker {
-  margin:0 0 6px; font-size:12px; font-weight:800; letter-spacing:.05em;
-  text-transform:uppercase; color:#60a5fa;
+  margin: 0 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: #2563eb;
 }
+.ir-delivery-summary {
+  margin: 0; color: #334155; font-size: 14px; line-height: 1.6;
+}
+.ir-delivery-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+@media(max-width:620px){ .ir-delivery-stats{ grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ir-mini-metric {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 12px;
+  min-width: 0;
+}
+.ir-mini-metric strong {
+  display: block; color: #0f172a; font-size: 16px; text-transform: capitalize;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ir-mini-metric span {
+  display: block; color: #64748b; font-size: 9px; margin-top: 4px; text-transform: uppercase;
+}
+
+.ir-log { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
+.ir-log-title { font-weight: 700; font-size: 14px; margin: 0 0 12px; color: #0f172a; }
+.ir-msg { border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.ir-msg-assistant { background: rgba(59, 130, 246, 0.05); border-left: 3px solid #3b82f6; }
+.ir-msg-user { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 3px solid #64748b; }
+.ir-msg-system { background: rgba(245, 158, 11, 0.05); border-left: 3px solid #f59e0b; }
+.ir-msg-who { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #64748b; display: block; margin-bottom: 4px; }
+.ir-msg-text { font-size: 13px; color: #334155; margin: 0; line-height: 1.55; }
 .ir-delivery-summary {
   margin:0; color:#cbd5e1; font-size:14px; line-height:1.6;
 }
