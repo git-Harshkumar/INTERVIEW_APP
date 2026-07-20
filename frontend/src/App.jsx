@@ -541,7 +541,7 @@ export default function App() {
   const [view, setView] = useState(() => localStorage.getItem('token') ? 'dashboard' : 'landing');
   const [user, setUser] = useState(null);
   const [starterTopic, setStarterTopic] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -587,10 +587,12 @@ export default function App() {
 
   if (view === 'auth') {
     return (
-      <div className="min-h-screen bg-[#020817] px-6 py-10 text-slate-50">
-        <button onClick={() => setView('landing')} className="mb-8 rounded-full border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/10 transition-colors">
-          ← Back to home
-        </button>
+      <div className="relative min-h-screen w-full bg-[#020817] text-slate-50">
+        <div className="absolute top-6 left-6 z-50">
+          <button onClick={() => setView('landing')} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/10 transition-colors">
+            ← Back to home
+          </button>
+        </div>
         <Auth onLogin={handleLogin} />
       </div>
     );
