@@ -2015,7 +2015,7 @@ export default function LiveInterview({
                       )}
                       <div className="ir-fb-card ir-fb-amber">
                         <p className="ir-fb-head">Improvement Notes</p>
-                        {report.deliveryAnalysis.improvements.map((s, i) => <p key={i} className="ir-fb-item">â€¢ {s}</p>)}
+                        {report.deliveryAnalysis.improvements.map((s, i) => <p key={i} className="ir-fb-item">• {s}</p>)}
                       </div>
                     </div>
                   )}
@@ -2259,6 +2259,31 @@ function ProctoringDashboard({ violations, warningTier, thresholds, onClose }) {
         ))}
       </div>
     </aside>
+  );
+}
+
+function IntegrityReportSection({ report }) {
+  return (
+    <div className="ir-integrity-card ir-integrity-main">
+      <p className="ir-delivery-kicker">Integrity & Security Report</p>
+      <p className="ir-delivery-summary">{report.recommendation}</p>
+      <div className="ir-delivery-stats">
+        <MiniMetric label="Total Events" value={report.totalEvents} />
+        <MiniMetric label="Warning Tier" value={"Tier " + report.warningTier} />
+      </div>
+      {report.events && report.events.length > 0 && (
+        <div className="ir-proctor-log ir-integrity-log mt-4">
+          <p className="ir-proctor-log-title">Event Log</p>
+          {report.events.map((v, i) => (
+            <div key={i} className={"ir-proctor-event ir-sev-" + v.severity}>
+              <span className="ir-proctor-time">{new Date(v.timestamp).toLocaleTimeString()}</span>
+              <strong>{v.label}</strong>
+              <p>{v.detail}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
